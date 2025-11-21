@@ -6,7 +6,7 @@ use std::time::Duration;
 fn main() {
     smol::block_on(async {
         #[cfg(feature = "hotpath")]
-        let _channels_guard = hotpath::channels::ChannelsGuard::new();
+        let _streams_guard = hotpath::streams::StreamsGuard::new();
 
         // Example 1: Basic stream from iterator
         let stream = stream::iter(1..=5);

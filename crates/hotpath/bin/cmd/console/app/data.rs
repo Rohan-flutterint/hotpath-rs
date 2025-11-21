@@ -1,6 +1,7 @@
 //! Data management - fetching, updating, and transforming functions/channels
 
 use super::{App, CachedLogs, CachedStreamLogs, SelectedTab};
+use hotpath::streams::StreamsJson;
 use hotpath::{FunctionLogsJson, FunctionsJson};
 use std::collections::HashMap;
 use std::time::Instant;
@@ -206,7 +207,7 @@ impl App {
         self.fetch_function_logs_if_open(port);
     }
 
-    pub(crate) fn update_streams(&mut self, streams: hotpath::channels::StreamsJson) {
+    pub(crate) fn update_streams(&mut self, streams: StreamsJson) {
         // Capture the currently selected stream ID (not index!)
         let selected_stream_id = self
             .table_state

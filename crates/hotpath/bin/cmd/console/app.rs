@@ -6,8 +6,9 @@
 //! - `data`: Data fetching and updates
 //! - `keys`: Keyboard input handling
 
-use hotpath::channels::{ChannelLogs, LogEntry, StreamLogs};
-use hotpath::{channels::ChannelsJson, channels::StreamsJson, FunctionLogsJson, FunctionsJson};
+use hotpath::channels::{ChannelLogs, LogEntry};
+use hotpath::streams::{StreamLogs, StreamsJson};
+use hotpath::{channels::ChannelsJson, FunctionLogsJson, FunctionsJson};
 use ratatui::widgets::TableState;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
@@ -165,7 +166,7 @@ impl App {
                 current_elapsed_ns: 0,
                 channels: vec![],
             },
-            streams: hotpath::channels::StreamsJson {
+            streams: StreamsJson {
                 current_elapsed_ns: 0,
                 streams: vec![],
             },

@@ -5,11 +5,14 @@ use crate::output::{FunctionLogsJson, FunctionsJson, MetricsProvider};
 pub use cfg_if::cfg_if;
 pub use hotpath_macros::{main, measure, measure_all, skip};
 
-// Channels module for instrumenting channels and streams
+// Channels module for instrumenting channels
 pub mod channels;
 
-// Re-export channels types and traits
-pub use channels::{Instrument, InstrumentLog, InstrumentStream, InstrumentStreamLog};
+// Streams module for instrumenting streams
+pub mod streams;
+
+pub use channels::{Instrument, InstrumentLog};
+pub use streams::{InstrumentStream, InstrumentStreamLog};
 
 use crossbeam_channel::Sender;
 

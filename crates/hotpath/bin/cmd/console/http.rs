@@ -1,6 +1,7 @@
 use eyre::Result;
-use hotpath::channels::{ChannelLogs, StreamLogs};
-use hotpath::{channels::StreamsJson, FunctionLogsJson, FunctionsJson};
+use hotpath::channels::ChannelLogs;
+use hotpath::streams::{StreamLogs, StreamsJson};
+use hotpath::{FunctionLogsJson, FunctionsJson};
 
 /// Fetches metrics from the hotpath HTTP server
 pub(crate) fn fetch_metrics(agent: &ureq::Agent, port: u16) -> Result<FunctionsJson> {

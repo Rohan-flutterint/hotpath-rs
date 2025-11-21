@@ -3,7 +3,8 @@ pub(crate) mod logs;
 
 use crate::cmd::console::app::StreamsFocus;
 use crate::cmd::console::widgets::formatters::truncate_left;
-use hotpath::channels::{ChannelState, SerializableStreamStats};
+use hotpath::channels::ChannelState;
+use hotpath::streams::SerializableStreamStats;
 use ratatui::{
     layout::{Constraint, Rect},
     style::{Color, Modifier, Style},

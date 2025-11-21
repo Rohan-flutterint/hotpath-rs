@@ -1,5 +1,6 @@
-use crate::channels::{get_channel_logs, get_channels_json, get_stream_logs, get_streams_json};
+use crate::channels::{get_channel_logs, get_channels_json};
 use crate::output::FunctionsJson;
+use crate::streams::{get_stream_logs, get_streams_json};
 use crate::{FunctionLogsJson, QueryRequest, HOTPATH_STATE};
 use crossbeam_channel::bounded;
 use regex::Regex;
