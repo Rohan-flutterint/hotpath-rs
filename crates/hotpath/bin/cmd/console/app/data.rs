@@ -1,6 +1,6 @@
 //! Data management - fetching, updating, and transforming functions/channels
 
-use super::{App, CachedLogs, SelectedTab};
+use super::{App, CachedLogs, CachedStreamLogs, SelectedTab};
 use hotpath::{FunctionLogsJson, FunctionsJson};
 use std::collections::HashMap;
 use std::time::Instant;
@@ -206,6 +206,76 @@ impl App {
         self.fetch_function_logs_if_open(port);
     }
 
+    pub(crate) fn update_streams(&mut self, streams: hotpath::channels::StreamsJson) {
+        // Capture the currently selected stream ID (not index!)
+        let selected_stream_id = self
+            .table_state
+            .selected()
+            .and_then(|idx| self.streams.streams.get(idx))
+            .map(|stat| stat.id);
+
+        self.streams = streams;
+        self.last_successful_fetch = Some(Instant::now());
+        self.error_message = None;
+
+        // Try to restore selection to the same stream ID
+        if let Some(stream_id) = selected_stream_id {
+            // Find the new index of the previously selected stream
+            if let Some(new_idx) = self
+                .streams
+                .streams
+                .iter()
+                .position(|stat| stat.id == stream_id)
+            {
+                self.table_state.select(Some(new_idx));
+            } else {
+                // Stream no longer exists, select the last one if available
+                if !self.streams.streams.is_empty() {
+                    self.table_state
+                        .select(Some(self.streams.streams.len() - 1));
+                }
+            }
+        } else if let Some(selected) = self.table_state.selected() {
+            if selected >= self.streams.streams.len() && !self.streams.streams.is_empty() {
+                self.table_state
+                    .select(Some(self.streams.streams.len() - 1));
+            }
+        }
+
+        if self.show_stream_logs {
+            self.refresh_stream_logs();
+        }
+    }
+
+    pub(crate) fn refresh_stream_logs(&mut self) {
+        if self.paused {
+            return;
+        }
+
+        self.stream_logs = None;
+
+        if let Some(selected) = self.table_state.selected() {
+            if !self.streams.streams.is_empty() && selected < self.streams.streams.len() {
+                let stream_id = self.streams.streams[selected].id;
+                if let Ok(logs) =
+                    super::super::http::fetch_stream_logs(&self.agent, self.metrics_port, stream_id)
+                {
+                    self.stream_logs = Some(CachedStreamLogs { logs });
+
+                    // Ensure logs table selection is valid
+                    if let Some(ref cached_logs) = self.stream_logs {
+                        let log_count = cached_logs.logs.logs.len();
+                        if let Some(selected) = self.stream_logs_table_state.selected() {
+                            if selected >= log_count && log_count > 0 {
+                                self.stream_logs_table_state.select(Some(log_count - 1));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     pub(crate) fn refresh_data(&mut self) {
         match self.selected_tab {
             SelectedTab::Functions => {
@@ -223,6 +293,16 @@ impl App {
                 match super::super::http::fetch_channels(&self.agent, self.metrics_port) {
                     Ok(channels) => {
                         self.update_channels(channels);
+                    }
+                    Err(e) => {
+                        self.set_error(format!("{}", e));
+                    }
+                }
+            }
+            SelectedTab::Streams => {
+                match super::super::http::fetch_streams(&self.agent, self.metrics_port) {
+                    Ok(streams) => {
+                        self.update_streams(streams);
                     }
                     Err(e) => {
                         self.set_error(format!("{}", e));

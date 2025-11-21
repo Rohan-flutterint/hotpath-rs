@@ -1,7 +1,8 @@
-use super::super::app::{App, ChannelsFocus, SelectedTab};
+use super::super::app::{App, ChannelsFocus, SelectedTab, StreamsFocus};
 use super::channels::{inspect, logs as channel_logs};
 use super::functions::logs;
-use super::{bottom_bar, channels, functions, top_bar};
+use super::streams::{inspect as stream_inspect, logs as stream_logs};
+use super::{bottom_bar, channels, functions, streams, top_bar};
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style, Stylize},
@@ -25,6 +26,7 @@ pub(crate) fn render_ui(frame: &mut Frame, app: &mut App) {
     let has_data = match app.selected_tab {
         SelectedTab::Functions => !app.functions.data.0.is_empty(),
         SelectedTab::Channels => !app.channels.channels.is_empty(),
+        SelectedTab::Streams => !app.streams.streams.is_empty(),
     };
 
     top_bar::render_status_bar(
@@ -56,22 +58,20 @@ pub(crate) fn render_ui(frame: &mut Frame, app: &mut App) {
         SelectedTab::Channels => {
             render_channels_view(frame, app, main_chunks[2]);
         }
+        SelectedTab::Streams => {
+            render_streams_view(frame, app, main_chunks[2]);
+        }
     }
 
-    bottom_bar::render_help_bar(frame, main_chunks[3], app.selected_tab, app.focus);
+    bottom_bar::render_help_bar(
+        frame,
+        main_chunks[3],
+        app.selected_tab,
+        app.channels_focus,
+        app.streams_focus,
+    );
 }
 
-/// Orchestrates the Channels tab layout
-///
-/// This function coordinates the layout for the Channels view, including:
-/// - Error states and empty states
-/// - Channels table and logs panel (split 50/50 when logs are visible)
-/// - Inspect popup overlay
-///
-/// The actual rendering of individual components is delegated to:
-/// - `channels::render_channels_panel` for the channels table
-/// - `channel_logs::render_logs_panel` for the channel logs panel
-/// - `inspect::render_inspect_popup` for the inspect popup
 fn render_channels_view(frame: &mut Frame, app: &mut App, area: Rect) {
     let stats = &app.channels.channels;
 
@@ -133,7 +133,7 @@ fn render_channels_view(frame: &mut Frame, app: &mut App, area: Rect) {
         frame,
         &mut app.table_state,
         app.show_logs,
-        app.focus,
+        app.channels_focus,
         channel_position,
         total_channels,
     );
@@ -170,7 +170,7 @@ fn render_channels_view(frame: &mut Frame, app: &mut App, area: Rect) {
                 logs_area,
                 frame,
                 &mut app.channel_logs_table_state,
-                app.focus == ChannelsFocus::Logs,
+                app.channels_focus == ChannelsFocus::Logs,
                 app.channels.current_elapsed_ns,
             );
         } else {
@@ -185,9 +185,127 @@ fn render_channels_view(frame: &mut Frame, app: &mut App, area: Rect) {
         }
     }
 
-    if app.focus == ChannelsFocus::Inspect {
+    if app.channels_focus == ChannelsFocus::Inspect {
         if let Some(ref inspected_log) = app.inspected_log {
             inspect::render_inspect_popup(inspected_log, area, frame);
+        }
+    }
+}
+
+fn render_streams_view(frame: &mut Frame, app: &mut App, area: Rect) {
+    let stats = &app.streams.streams;
+
+    if let Some(ref error_msg) = app.error_message {
+        if stats.is_empty() {
+            let error_text = vec![
+                Line::from(""),
+                Line::from("Error").red().bold().centered(),
+                Line::from(""),
+                Line::from(error_msg.as_str()).red().centered(),
+                Line::from(""),
+                Line::from(format!(
+                    "Make sure the metrics server is running on http://127.0.0.1:{}",
+                    app.metrics_port
+                ))
+                .yellow()
+                .centered(),
+            ];
+
+            let block = Block::bordered().border_set(border::THICK);
+            frame.render_widget(Paragraph::new(error_text).block(block), area);
+            return;
+        }
+    }
+
+    if stats.is_empty() {
+        let empty_text = vec![
+            Line::from(""),
+            Line::from("No stream statistics found").yellow().centered(),
+            Line::from(""),
+            Line::from("Make sure streams are instrumented and the server is running").centered(),
+        ];
+
+        let block = Block::bordered().border_set(border::THICK);
+        frame.render_widget(Paragraph::new(empty_text).block(block), area);
+        return;
+    }
+
+    // Split the area if logs are being shown
+    let (table_area, logs_area) = if app.show_stream_logs {
+        let chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+            .split(area);
+        (chunks[0], Some(chunks[1]))
+    } else {
+        (area, None)
+    };
+
+    let selected_index = app.table_state.selected().unwrap_or(0);
+    let stream_position = selected_index + 1; // 1-indexed
+    let total_streams = stats.len();
+
+    streams::render_streams_panel(
+        stats,
+        table_area,
+        frame,
+        &mut app.table_state,
+        app.show_stream_logs,
+        app.streams_focus,
+        stream_position,
+        total_streams,
+    );
+
+    // Render logs panel if visible
+    if let Some(logs_area) = logs_area {
+        let stream_label = app
+            .table_state
+            .selected()
+            .and_then(|i| stats.get(i))
+            .map(|stat| {
+                if stat.label.is_empty() {
+                    stat.id.to_string()
+                } else {
+                    stat.label.clone()
+                }
+            })
+            .unwrap_or_else(|| "Unknown".to_string());
+
+        if let Some(ref cached_logs) = app.stream_logs {
+            let has_missing_log = cached_logs
+                .logs
+                .logs
+                .iter()
+                .any(|entry| entry.message.is_none());
+            let display_label = if has_missing_log {
+                format!("{} (missing \"log = true\")", stream_label)
+            } else {
+                stream_label
+            };
+            stream_logs::render_logs_panel(
+                cached_logs,
+                &display_label,
+                logs_area,
+                frame,
+                &mut app.stream_logs_table_state,
+                app.streams_focus == StreamsFocus::Logs,
+                app.streams.current_elapsed_ns,
+            );
+        } else {
+            let message = if app.paused {
+                "(refresh paused)"
+            } else if app.error_message.is_some() {
+                "(cannot fetch new data)"
+            } else {
+                "(no data)"
+            };
+            stream_logs::render_logs_placeholder(&stream_label, message, logs_area, frame);
+        }
+    }
+
+    if app.streams_focus == StreamsFocus::Inspect {
+        if let Some(ref inspected_log) = app.inspected_stream_log {
+            stream_inspect::render_inspect_popup(inspected_log, area, frame);
         }
     }
 }
@@ -208,6 +326,7 @@ fn render_tabs(frame: &mut Frame, area: ratatui::layout::Rect, selected_tab: Sel
     let titles = vec![
         create_tab_line(SelectedTab::Functions),
         create_tab_line(SelectedTab::Channels),
+        create_tab_line(SelectedTab::Streams),
     ];
 
     let selected_index = (selected_tab.number() - 1) as usize;

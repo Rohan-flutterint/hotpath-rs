@@ -1,3 +1,4 @@
+use futures_util::stream::{self, StreamExt};
 use rand::Rng;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
@@ -115,12 +116,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (slow_tx, slow_rx) = mpsc::channel::<String>(50);
 
     #[cfg(feature = "hotpath")]
-    let (fast_tx, fast_rx) = hotpath::channel!((fast_tx, fast_rx), label = "fast_metrics");
+    let (fast_tx, fast_rx) =
+        hotpath::channel!((fast_tx, fast_rx), label = "fast_metrics", log = true);
     #[cfg(feature = "hotpath")]
     let (slow_tx, slow_rx) = hotpath::channel!((slow_tx, slow_rx), label = "slow_events");
 
     let mut fast_rx = fast_rx;
     let mut slow_rx = slow_rx;
+
+    // Create two instrumented streams
+    let fast_stream = stream::iter(0u64..);
+    let slow_stream = stream::iter(0u64..);
+
+    #[cfg(feature = "hotpath")]
+    let fast_stream = hotpath::stream!(fast_stream, label = "fast_metrics_stream", log = true);
+    #[cfg(feature = "hotpath")]
+    let slow_stream = hotpath::stream!(slow_stream, label = "slow_status_stream");
+
+    // Pin the streams for consumption
+    let mut fast_stream = Box::pin(fast_stream);
+    let mut slow_stream = Box::pin(slow_stream);
 
     // Spawn fast channel consumer
     let fast_consumer = tokio::spawn(async move {
@@ -165,6 +180,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let _ = slow_tx
                 .send(format!("Event at iteration {}", iteration))
                 .await;
+        }
+
+        // Consume from fast stream frequently
+        if let Some(value) = fast_stream.next().await {
+            std::hint::black_box(value);
+        }
+
+        // Consume from slow stream occasionally
+        if iteration % 7 == 0 {
+            if let Some(value) = slow_stream.next().await {
+                std::hint::black_box(value);
+            }
         }
 
         // Call allocator functions which now randomly allocate 1-10 arrays each

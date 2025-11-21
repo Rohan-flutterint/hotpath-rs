@@ -6,8 +6,8 @@
 //! - `data`: Data fetching and updates
 //! - `keys`: Keyboard input handling
 
-use hotpath::channels::{ChannelLogs, LogEntry};
-use hotpath::{channels::ChannelsJson, FunctionLogsJson, FunctionsJson};
+use hotpath::channels::{ChannelLogs, LogEntry, StreamLogs};
+use hotpath::{channels::ChannelsJson, channels::StreamsJson, FunctionLogsJson, FunctionsJson};
 use ratatui::widgets::TableState;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
@@ -22,6 +22,7 @@ pub(crate) enum SelectedTab {
     #[default]
     Functions,
     Channels,
+    Streams,
 }
 
 impl SelectedTab {
@@ -29,6 +30,7 @@ impl SelectedTab {
         match self {
             SelectedTab::Functions => 1,
             SelectedTab::Channels => 2,
+            SelectedTab::Streams => 3,
         }
     }
 
@@ -36,6 +38,7 @@ impl SelectedTab {
         match self {
             SelectedTab::Functions => "Functions",
             SelectedTab::Channels => "Channels",
+            SelectedTab::Streams => "Streams",
         }
     }
 }
@@ -48,10 +51,22 @@ pub(crate) enum ChannelsFocus {
     Inspect,
 }
 
+/// Represents which UI component has focus in the Streams tab
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum StreamsFocus {
+    Streams,
+    Logs,
+    Inspect,
+}
+
 /// Cached logs with a lookup map for received entries
 pub(crate) struct CachedLogs {
     pub(crate) logs: ChannelLogs,
     pub(crate) received_map: HashMap<u64, LogEntry>,
+}
+
+pub(crate) struct CachedStreamLogs {
+    pub(crate) logs: StreamLogs,
 }
 
 /// Main TUI application state
@@ -65,10 +80,12 @@ pub(crate) struct CachedLogs {
 /// The implementation is split across multiple modules to improve maintainability.
 pub(crate) struct App {
     // Data from profiled application
-    /// Current functions data (functions, timings, allocations)
+    /// Current functions data
     pub(crate) functions: FunctionsJson,
-    /// Current channels data (message passing statistics)
+    /// Current channels data
     pub(crate) channels: ChannelsJson,
+    /// Current streams data
+    pub(crate) streams: StreamsJson,
 
     // UI state - navigation and selection
     /// Selection state for main table (functions or channels)
@@ -106,13 +123,25 @@ pub(crate) struct App {
     /// Selection state for logs table
     pub(crate) channel_logs_table_state: TableState,
     /// Which component has focus in Channels tab
-    pub(crate) focus: ChannelsFocus,
+    pub(crate) channels_focus: ChannelsFocus,
     /// Whether logs panel is visible
     pub(crate) show_logs: bool,
     /// Cached logs data for selected channel
     pub(crate) logs: Option<CachedLogs>,
     /// Log entry being inspected in popup
     pub(crate) inspected_log: Option<LogEntry>,
+
+    // Streams tab specific state
+    /// Selection state for stream logs table
+    pub(crate) stream_logs_table_state: TableState,
+    /// Which component has focus in Streams tab
+    pub(crate) streams_focus: StreamsFocus,
+    /// Whether stream logs panel is visible
+    pub(crate) show_stream_logs: bool,
+    /// Cached logs data for selected stream
+    pub(crate) stream_logs: Option<CachedStreamLogs>,
+    /// Stream log entry being inspected in popup
+    pub(crate) inspected_stream_log: Option<LogEntry>,
 }
 
 impl App {
@@ -136,6 +165,10 @@ impl App {
                 current_elapsed_ns: 0,
                 channels: vec![],
             },
+            streams: hotpath::channels::StreamsJson {
+                current_elapsed_ns: 0,
+                streams: vec![],
+            },
             table_state: TableState::default().with_selected(0),
             selected_tab: SelectedTab::default(),
             paused: false,
@@ -149,10 +182,15 @@ impl App {
             metrics_port,
             exit: false,
             channel_logs_table_state: TableState::default(),
-            focus: ChannelsFocus::Channels,
+            channels_focus: ChannelsFocus::Channels,
             show_logs: false,
             logs: None,
             inspected_log: None,
+            stream_logs_table_state: TableState::default(),
+            streams_focus: StreamsFocus::Streams,
+            show_stream_logs: false,
+            stream_logs: None,
+            inspected_stream_log: None,
         }
     }
 

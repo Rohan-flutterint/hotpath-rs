@@ -1,6 +1,6 @@
 use eyre::Result;
-use hotpath::channels::ChannelLogs;
-use hotpath::{FunctionLogsJson, FunctionsJson};
+use hotpath::channels::{ChannelLogs, StreamLogs};
+use hotpath::{channels::StreamsJson, FunctionLogsJson, FunctionsJson};
 
 /// Fetches metrics from the hotpath HTTP server
 pub(crate) fn fetch_metrics(agent: &ureq::Agent, port: u16) -> Result<FunctionsJson> {
@@ -59,6 +59,36 @@ pub(crate) fn fetch_channel_logs(
 ) -> Result<ChannelLogs> {
     let url = format!("http://localhost:{}/channels/{}/logs", port, channel_id);
     let logs: ChannelLogs = agent
+        .get(&url)
+        .call()
+        .map_err(|e| eyre::eyre!("HTTP request failed: {}", e))?
+        .body_mut()
+        .read_json()
+        .map_err(|e| eyre::eyre!("JSON deserialization failed: {}", e))?;
+    Ok(logs)
+}
+
+/// Fetches streams from the hotpath HTTP server
+pub(crate) fn fetch_streams(agent: &ureq::Agent, port: u16) -> Result<StreamsJson> {
+    let url = format!("http://localhost:{}/streams", port);
+    let streams: StreamsJson = agent
+        .get(&url)
+        .call()
+        .map_err(|e| eyre::eyre!("HTTP request failed: {}", e))?
+        .body_mut()
+        .read_json()
+        .map_err(|e| eyre::eyre!("JSON deserialization failed: {}", e))?;
+    Ok(streams)
+}
+
+/// Fetches logs for a specific stream from the HTTP server
+pub(crate) fn fetch_stream_logs(
+    agent: &ureq::Agent,
+    port: u16,
+    stream_id: u64,
+) -> Result<StreamLogs> {
+    let url = format!("http://localhost:{}/streams/{}/logs", port, stream_id);
+    let logs: StreamLogs = agent
         .get(&url)
         .call()
         .map_err(|e| eyre::eyre!("HTTP request failed: {}", e))?

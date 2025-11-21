@@ -1,6 +1,6 @@
 //! UI state management - navigation, selection, and focus handling
 
-use super::{App, ChannelsFocus, SelectedTab};
+use super::{App, ChannelsFocus, SelectedTab, StreamsFocus};
 
 impl App {
     pub(crate) fn next_function(&mut self) {
@@ -100,11 +100,11 @@ impl App {
         self.show_logs = false;
         self.logs = None;
         self.channel_logs_table_state.select(None);
-        self.focus = ChannelsFocus::Channels;
+        self.channels_focus = ChannelsFocus::Channels;
     }
 
     pub(crate) fn focus_channels(&mut self) {
-        self.focus = ChannelsFocus::Channels;
+        self.channels_focus = ChannelsFocus::Channels;
         self.channel_logs_table_state.select(None);
     }
 
@@ -114,7 +114,7 @@ impl App {
         } else if !self.channels.channels.is_empty() {
             if let Some(ref cached_logs) = self.logs {
                 if !cached_logs.logs.sent_logs.is_empty() {
-                    self.focus = ChannelsFocus::Logs;
+                    self.channels_focus = ChannelsFocus::Logs;
                     if self.channel_logs_table_state.selected().is_none() {
                         self.channel_logs_table_state.select(Some(0));
                     }
@@ -134,7 +134,7 @@ impl App {
                 self.channel_logs_table_state.select(Some(i));
 
                 // Update inspected log if inspect popup is open
-                if self.focus == ChannelsFocus::Inspect {
+                if self.channels_focus == ChannelsFocus::Inspect {
                     if let Some(entry) = cached_logs.logs.sent_logs.get(i) {
                         self.inspected_log = Some(entry.clone());
                     }
@@ -154,7 +154,7 @@ impl App {
                 self.channel_logs_table_state.select(Some(i));
 
                 // Update inspected log if inspect popup is open
-                if self.focus == ChannelsFocus::Inspect {
+                if self.channels_focus == ChannelsFocus::Inspect {
                     if let Some(entry) = cached_logs.logs.sent_logs.get(i) {
                         self.inspected_log = Some(entry.clone());
                     }
@@ -164,11 +164,11 @@ impl App {
     }
 
     pub(crate) fn toggle_inspect(&mut self) {
-        if self.focus == ChannelsFocus::Inspect {
+        if self.channels_focus == ChannelsFocus::Inspect {
             // Closing inspect popup
-            self.focus = ChannelsFocus::Logs;
+            self.channels_focus = ChannelsFocus::Logs;
             self.inspected_log = None;
-        } else if self.focus == ChannelsFocus::Logs
+        } else if self.channels_focus == ChannelsFocus::Logs
             && self.channel_logs_table_state.selected().is_some()
         {
             // Opening inspect popup - capture the current log entry
@@ -176,7 +176,7 @@ impl App {
                 if let Some(ref cached_logs) = self.logs {
                     if let Some(entry) = cached_logs.logs.sent_logs.get(selected) {
                         self.inspected_log = Some(entry.clone());
-                        self.focus = ChannelsFocus::Inspect;
+                        self.channels_focus = ChannelsFocus::Inspect;
                     }
                 }
             }
@@ -190,7 +190,7 @@ impl App {
 
     pub(crate) fn close_inspect_only(&mut self) {
         self.inspected_log = None;
-        self.focus = ChannelsFocus::Channels;
+        self.channels_focus = ChannelsFocus::Channels;
         self.channel_logs_table_state.select(None);
     }
 
@@ -203,5 +203,163 @@ impl App {
             // Clear pinned function when closing function logs panel
             self.pinned_function = None;
         }
+    }
+
+    // Streams state management methods
+    pub(crate) fn select_previous_stream(&mut self) {
+        let count = self.streams.streams.len();
+        if count == 0 {
+            return;
+        }
+
+        let i = match self.table_state.selected() {
+            Some(i) => i.saturating_sub(1),
+            None => 0,
+        };
+        self.table_state.select(Some(i));
+
+        if self.paused && self.show_stream_logs {
+            self.stream_logs = None;
+        } else if self.show_stream_logs {
+            self.refresh_stream_logs();
+        }
+    }
+
+    pub(crate) fn select_next_stream(&mut self) {
+        let count = self.streams.streams.len();
+        if count == 0 {
+            return;
+        }
+
+        let i = match self.table_state.selected() {
+            Some(i) => (i + 1).min(count - 1),
+            None => 0,
+        };
+        self.table_state.select(Some(i));
+
+        if self.paused && self.show_stream_logs {
+            self.stream_logs = None;
+        } else if self.show_stream_logs {
+            self.refresh_stream_logs();
+        }
+    }
+
+    pub(crate) fn toggle_stream_logs(&mut self) {
+        let has_valid_selection = self
+            .table_state
+            .selected()
+            .map(|i| i < self.streams.streams.len())
+            .unwrap_or(false);
+
+        if !self.streams.streams.is_empty() && has_valid_selection {
+            if self.show_stream_logs {
+                self.hide_stream_logs();
+            } else {
+                self.show_stream_logs = true;
+                if self.paused {
+                    self.stream_logs = None;
+                } else {
+                    self.refresh_stream_logs();
+                }
+            }
+        }
+    }
+
+    pub(crate) fn hide_stream_logs(&mut self) {
+        self.show_stream_logs = false;
+        self.stream_logs = None;
+        self.stream_logs_table_state.select(None);
+        self.streams_focus = StreamsFocus::Streams;
+    }
+
+    pub(crate) fn focus_streams(&mut self) {
+        self.streams_focus = StreamsFocus::Streams;
+        self.stream_logs_table_state.select(None);
+    }
+
+    pub(crate) fn focus_stream_logs(&mut self) {
+        if !self.show_stream_logs {
+            self.toggle_stream_logs();
+        } else if !self.streams.streams.is_empty() {
+            if let Some(ref cached_logs) = self.stream_logs {
+                if !cached_logs.logs.logs.is_empty() {
+                    self.streams_focus = StreamsFocus::Logs;
+                    if self.stream_logs_table_state.selected().is_none() {
+                        self.stream_logs_table_state.select(Some(0));
+                    }
+                }
+            }
+        }
+    }
+
+    pub(crate) fn select_previous_stream_log(&mut self) {
+        if let Some(ref cached_logs) = self.stream_logs {
+            let log_count = cached_logs.logs.logs.len();
+            if log_count > 0 {
+                let i = match self.stream_logs_table_state.selected() {
+                    Some(i) => i.saturating_sub(1),
+                    None => 0,
+                };
+                self.stream_logs_table_state.select(Some(i));
+
+                // Update inspected log if inspect popup is open
+                if self.streams_focus == StreamsFocus::Inspect {
+                    if let Some(entry) = cached_logs.logs.logs.get(i) {
+                        self.inspected_stream_log = Some(entry.clone());
+                    }
+                }
+            }
+        }
+    }
+
+    pub(crate) fn select_next_stream_log(&mut self) {
+        if let Some(ref cached_logs) = self.stream_logs {
+            let log_count = cached_logs.logs.logs.len();
+            if log_count > 0 {
+                let i = match self.stream_logs_table_state.selected() {
+                    Some(i) => (i + 1).min(log_count - 1),
+                    None => 0,
+                };
+                self.stream_logs_table_state.select(Some(i));
+
+                // Update inspected log if inspect popup is open
+                if self.streams_focus == StreamsFocus::Inspect {
+                    if let Some(entry) = cached_logs.logs.logs.get(i) {
+                        self.inspected_stream_log = Some(entry.clone());
+                    }
+                }
+            }
+        }
+    }
+
+    pub(crate) fn toggle_stream_inspect(&mut self) {
+        if self.streams_focus == StreamsFocus::Inspect {
+            // Closing inspect popup
+            self.streams_focus = StreamsFocus::Logs;
+            self.inspected_stream_log = None;
+        } else if self.streams_focus == StreamsFocus::Logs
+            && self.stream_logs_table_state.selected().is_some()
+        {
+            // Opening inspect popup - capture the current log entry
+            if let Some(selected) = self.stream_logs_table_state.selected() {
+                if let Some(ref cached_logs) = self.stream_logs {
+                    if let Some(entry) = cached_logs.logs.logs.get(selected) {
+                        self.inspected_stream_log = Some(entry.clone());
+                        self.streams_focus = StreamsFocus::Inspect;
+                    }
+                }
+            }
+        }
+    }
+
+    pub(crate) fn close_stream_inspect_and_refocus_streams(&mut self) {
+        self.inspected_stream_log = None;
+        self.hide_stream_logs();
+    }
+
+    pub(crate) fn close_stream_inspect_only(&mut self) {
+        self.inspected_stream_log = None;
+        self.streams_focus = StreamsFocus::Streams;
+        self.stream_logs_table_state.select(None);
     }
 }

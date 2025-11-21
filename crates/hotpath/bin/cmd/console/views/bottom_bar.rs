@@ -1,4 +1,4 @@
-use crate::cmd::console::app::{ChannelsFocus, SelectedTab};
+use crate::cmd::console::app::{ChannelsFocus, SelectedTab, StreamsFocus};
 use ratatui::{
     layout::Rect,
     style::Stylize,
@@ -14,8 +14,46 @@ pub(crate) fn render_help_bar(
     area: Rect,
     selected_tab: SelectedTab,
     focus: ChannelsFocus,
+    streams_focus: StreamsFocus,
 ) {
-    let controls_line = if selected_tab == SelectedTab::Channels {
+    let controls_line = if selected_tab == SelectedTab::Streams {
+        match streams_focus {
+            StreamsFocus::Streams => Line::from(vec![
+                " Navigate ".into(),
+                "<←↑↓→/hjkl> ".blue().bold(),
+                " | Toggle Logs ".into(),
+                "<o> ".blue().bold(),
+                " | Pause ".into(),
+                "<p> ".blue().bold(),
+                " | Quit ".into(),
+                "<q> ".blue().bold(),
+            ]),
+            StreamsFocus::Logs => Line::from(vec![
+                " Navigate ".into(),
+                "<←↑↓→/hjkl> ".blue().bold(),
+                " | Toggle Logs ".into(),
+                "<o> ".blue().bold(),
+                " | Pause ".into(),
+                "<p> ".blue().bold(),
+                " | Inspect ".into(),
+                "<i> ".blue().bold(),
+                " | Quit ".into(),
+                "<q> ".blue().bold(),
+            ]),
+            StreamsFocus::Inspect => Line::from(vec![
+                " Navigate ".into(),
+                "<←↑↓→/hjkl> ".blue().bold(),
+                " | Toggle Logs ".into(),
+                "<o> ".blue().bold(),
+                " | Pause ".into(),
+                "<p> ".blue().bold(),
+                " | Close ".into(),
+                "<i/o/h> ".blue().bold(),
+                " | Quit ".into(),
+                "<q> ".blue().bold(),
+            ]),
+        }
+    } else if selected_tab == SelectedTab::Channels {
         match focus {
             ChannelsFocus::Channels => Line::from(vec![
                 " Navigate ".into(),
@@ -55,7 +93,7 @@ pub(crate) fn render_help_bar(
     } else {
         Line::from(vec![
             " Navigate ".into(),
-            "<↑/k ↓/j> ".blue().bold(),
+            "<↑↓/jk> ".blue().bold(),
             " | Toggle Logs ".into(),
             "<o> ".blue().bold(),
             " | Pause ".into(),
