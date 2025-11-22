@@ -32,32 +32,59 @@ pub(crate) fn render_function_logs_panel(frame: &mut Frame, area: Rect, app: &Ap
         ));
 
     if let Some(ref function_logs_data) = app.current_function_logs {
-        let headers = Row::new(vec![
-            Cell::from("Index").style(
-                Style::default()
-                    .fg(Color::Yellow)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Cell::from("Metric").style(
-                Style::default()
-                    .fg(Color::Yellow)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Cell::from("Ago").style(
-                Style::default()
-                    .fg(Color::Yellow)
-                    .add_modifier(Modifier::BOLD),
-            ),
-        ]);
+        let is_alloc_mode = matches!(
+            app.functions.hotpath_profiling_mode,
+            hotpath::ProfilingMode::Alloc
+        );
+
+        let headers = if is_alloc_mode {
+            Row::new(vec![
+                Cell::from("Index").style(
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Cell::from("Mem").style(
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Cell::from("Objects").style(
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Cell::from("Ago").style(
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                ),
+            ])
+        } else {
+            Row::new(vec![
+                Cell::from("Index").style(
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Cell::from("Latency").style(
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Cell::from("Ago").style(
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                ),
+            ])
+        };
 
         let rows: Vec<Row> = function_logs_data
             .logs
             .iter()
             .enumerate()
             .map(|(idx, &(value, elapsed_nanos, count))| {
-                let formatted_value =
-                    format_log_value(value, count, &app.functions.hotpath_profiling_mode);
-
                 let total_elapsed = app.functions.total_elapsed;
                 let time_ago_str = if total_elapsed >= elapsed_nanos {
                     let nanos_ago = total_elapsed - elapsed_nanos;
@@ -66,19 +93,44 @@ pub(crate) fn render_function_logs_panel(frame: &mut Frame, area: Rect, app: &Ap
                     "now".to_string()
                 };
 
-                Row::new(vec![
-                    Cell::from(format!("{}", idx + 1)).style(Style::default().fg(Color::Green)),
-                    Cell::from(formatted_value).style(Style::default().fg(Color::Cyan)),
-                    Cell::from(time_ago_str).style(Style::default().fg(Color::DarkGray)),
-                ])
+                if is_alloc_mode {
+                    let mem_str = hotpath::format_bytes(value);
+                    let obj_str = count.map_or("0".to_string(), |c| c.to_string());
+
+                    Row::new(vec![
+                        Cell::from(format!("{}", idx + 1)).style(Style::default().fg(Color::Green)),
+                        Cell::from(mem_str).style(Style::default().fg(Color::Cyan)),
+                        Cell::from(obj_str).style(Style::default().fg(Color::Cyan)),
+                        Cell::from(time_ago_str).style(Style::default().fg(Color::DarkGray)),
+                    ])
+                } else {
+                    let time_str = hotpath::format_duration(value);
+
+                    Row::new(vec![
+                        Cell::from(format!("{}", idx + 1)).style(Style::default().fg(Color::Green)),
+                        Cell::from(time_str).style(Style::default().fg(Color::Cyan)),
+                        Cell::from(time_ago_str).style(Style::default().fg(Color::DarkGray)),
+                    ])
+                }
             })
             .collect();
 
-        let widths = [
-            Constraint::Length(7),  // Index column
-            Constraint::Min(15),    // Metric column (flexible)
-            Constraint::Length(12), // Ago column
-        ];
+        let widths = if is_alloc_mode {
+            [
+                Constraint::Length(7),  // Index column
+                Constraint::Min(10),    // Mem column
+                Constraint::Length(9),  // Objects column
+                Constraint::Length(12), // Ago column
+            ]
+            .as_slice()
+        } else {
+            [
+                Constraint::Length(7),  // Index column
+                Constraint::Min(15),    // Latency column (flexible)
+                Constraint::Length(12), // Ago column
+            ]
+            .as_slice()
+        };
 
         let table = Table::new(rows, widths)
             .header(headers)
@@ -113,22 +165,5 @@ pub(crate) fn render_function_logs_panel(frame: &mut Frame, area: Rect, app: &Ap
         ];
         let list = List::new(items).block(block);
         frame.render_widget(list, area);
-    }
-}
-
-fn format_log_value(
-    value: u64,
-    count: Option<u64>,
-    profiling_mode: &hotpath::ProfilingMode,
-) -> String {
-    match profiling_mode {
-        hotpath::ProfilingMode::Timing => hotpath::format_duration(value),
-        hotpath::ProfilingMode::Alloc => {
-            if let Some(count) = count {
-                format!("{} | {}", hotpath::format_bytes(value), count)
-            } else {
-                hotpath::format_bytes(value)
-            }
-        }
     }
 }
