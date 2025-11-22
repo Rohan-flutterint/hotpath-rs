@@ -3,9 +3,9 @@ use hotpath::channels::ChannelLogs;
 use hotpath::streams::{StreamLogs, StreamsJson};
 use hotpath::{FunctionLogsJson, FunctionsJson};
 
-/// Fetches metrics from the hotpath HTTP server
-pub(crate) fn fetch_metrics(agent: &ureq::Agent, port: u16) -> Result<FunctionsJson> {
-    let url = format!("http://localhost:{}/metrics", port);
+/// Fetches timing metrics from the hotpath HTTP server
+pub(crate) fn fetch_functions_timing(agent: &ureq::Agent, port: u16) -> Result<FunctionsJson> {
+    let url = format!("http://localhost:{}/functions_timing", port);
     let metrics: FunctionsJson = agent
         .get(&url)
         .call()
@@ -14,6 +14,34 @@ pub(crate) fn fetch_metrics(agent: &ureq::Agent, port: u16) -> Result<FunctionsJ
         .read_json()
         .map_err(|e| eyre::eyre!("JSON deserialization failed: {}", e))?;
     Ok(metrics)
+}
+
+/// Fetches allocation metrics from the hotpath HTTP server
+/// Returns None if hotpath-alloc feature is not enabled (404 response)
+pub(crate) fn fetch_functions_alloc(
+    agent: &ureq::Agent,
+    port: u16,
+) -> Result<Option<FunctionsJson>> {
+    let url = format!("http://localhost:{}/functions_alloc", port);
+    let response = agent.get(&url).call();
+
+    match response {
+        Ok(mut resp) => {
+            let metrics: FunctionsJson = resp
+                .body_mut()
+                .read_json()
+                .map_err(|e| eyre::eyre!("JSON deserialization failed: {}", e))?;
+            Ok(Some(metrics))
+        }
+        Err(e) => {
+            // Check if it's a 404 response (feature not enabled)
+            let err_str = e.to_string();
+            if err_str.contains("404") {
+                return Ok(None);
+            }
+            Err(eyre::eyre!("HTTP request failed: {}", e))
+        }
+    }
 }
 
 /// Fetches channels from the hotpath HTTP server

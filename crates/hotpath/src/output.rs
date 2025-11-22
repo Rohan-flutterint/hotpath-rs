@@ -438,7 +438,7 @@ impl<'a> Serialize for FunctionDataSerializer<'a> {
 
 impl From<&dyn MetricsProvider<'_>> for FunctionsJson {
     fn from(metrics: &dyn MetricsProvider<'_>) -> Self {
-        let hotpath_profiling_mode = Self::determine_profiling_mode();
+        let hotpath_profiling_mode = metrics.profiling_mode();
         let percentiles = metrics.percentiles();
 
         let sorted_entries = get_sorted_measurements(metrics);

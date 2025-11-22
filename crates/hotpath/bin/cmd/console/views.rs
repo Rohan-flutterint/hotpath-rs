@@ -1,6 +1,7 @@
 pub(crate) mod bottom_bar;
 pub(crate) mod channels;
-pub(crate) mod functions;
+pub(crate) mod functions_memory;
+pub(crate) mod functions_timing;
 pub(crate) mod main_view;
 pub(crate) mod streams;
 pub(crate) mod top_bar;

@@ -58,8 +58,16 @@ fn handle_request(request: Request) {
     let path = request.url().split('?').next().unwrap_or("/").to_string();
 
     match path.as_str() {
-        "/metrics" => {
-            let metrics = get_functions_json();
+        "/functions_alloc" => match get_functions_alloc_json() {
+            Some(metrics) => respond_json(request, &metrics),
+            None => respond_error(
+                request,
+                404,
+                "Memory profiling not available - enable hotpath-alloc feature",
+            ),
+        },
+        "/functions_timing" => {
+            let metrics = get_functions_timing_json();
             respond_json(request, &metrics);
         }
         "/channels" => {
@@ -171,7 +179,7 @@ fn get_function_logs(function_name: &str) -> Option<FunctionLogsJson> {
 
     if let Some(query_tx) = &state_guard.query_tx {
         query_tx
-            .send(QueryRequest::GetFunctionCalls {
+            .send(QueryRequest::GetFunctionLogs {
                 function_name: function_name.to_string(),
                 response_tx,
             })
@@ -188,8 +196,13 @@ fn get_function_logs(function_name: &str) -> Option<FunctionLogsJson> {
     }
 }
 
-fn get_functions_json() -> FunctionsJson {
-    if let Some(metrics) = try_get_functions_from_worker() {
+fn get_functions_alloc_json() -> Option<FunctionsJson> {
+    // Returns None if hotpath-alloc feature is not enabled, Some(data) otherwise
+    try_get_functions_alloc_from_worker()
+}
+
+fn get_functions_timing_json() -> FunctionsJson {
+    if let Some(metrics) = try_get_functions_timing_from_worker() {
         return metrics;
     }
 
@@ -197,14 +210,39 @@ fn get_functions_json() -> FunctionsJson {
     FunctionsJson {
         hotpath_profiling_mode: crate::output::ProfilingMode::Timing,
         total_elapsed: 0,
-        description: "No functions data available yet".to_string(),
+        description: "No timing data available yet".to_string(),
         caller_name: "hotpath".to_string(),
         percentiles: vec![95],
         data: crate::output::FunctionsDataJson(HashMap::new()),
     }
 }
 
-fn try_get_functions_from_worker() -> Option<FunctionsJson> {
+fn try_get_functions_alloc_from_worker() -> Option<FunctionsJson> {
+    let arc_swap = HOTPATH_STATE.get()?;
+    let state_option = arc_swap.load();
+    let state_arc = (*state_option).as_ref()?.clone();
+
+    let state_guard = state_arc.read().ok()?;
+
+    let (response_tx, response_rx) = bounded::<Option<FunctionsJson>>(1);
+
+    if let Some(query_tx) = &state_guard.query_tx {
+        query_tx
+            .send(QueryRequest::GetFunctions(response_tx))
+            .ok()?;
+        drop(state_guard);
+
+        // Flatten the Option<Option<FunctionsJson>> to Option<FunctionsJson>
+        response_rx
+            .recv_timeout(Duration::from_millis(250))
+            .ok()
+            .flatten()
+    } else {
+        None
+    }
+}
+
+fn try_get_functions_timing_from_worker() -> Option<FunctionsJson> {
     let arc_swap = HOTPATH_STATE.get()?;
     let state_option = arc_swap.load();
     let state_arc = (*state_option).as_ref()?.clone();
@@ -215,7 +253,7 @@ fn try_get_functions_from_worker() -> Option<FunctionsJson> {
 
     if let Some(query_tx) = &state_guard.query_tx {
         query_tx
-            .send(QueryRequest::GetFunctions(response_tx))
+            .send(QueryRequest::GetFunctionsTiming(response_tx))
             .ok()?;
         drop(state_guard);
 

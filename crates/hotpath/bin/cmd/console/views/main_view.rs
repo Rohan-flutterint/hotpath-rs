@@ -1,8 +1,9 @@
 use super::super::app::{App, ChannelsFocus, FunctionsFocus, SelectedTab, StreamsFocus};
 use super::channels::{inspect, logs as channel_logs};
-use super::functions::logs;
+use super::functions_memory::logs as memory_logs;
+use super::functions_timing::logs as timing_logs;
 use super::streams::{inspect as stream_inspect, logs as stream_logs};
-use super::{bottom_bar, channels, functions, streams, top_bar};
+use super::{bottom_bar, channels, functions_memory, functions_timing, streams, top_bar};
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style, Stylize},
@@ -24,7 +25,8 @@ pub(crate) fn render_ui(frame: &mut Frame, app: &mut App) {
         .split(frame.area());
 
     let has_data = match app.selected_tab {
-        SelectedTab::Functions => !app.functions.data.0.is_empty(),
+        SelectedTab::Timing => !app.timing_functions.data.0.is_empty(),
+        SelectedTab::Memory => !app.memory_functions.data.0.is_empty(),
         SelectedTab::Channels => !app.channels.channels.is_empty(),
         SelectedTab::Streams => !app.streams.streams.is_empty(),
     };
@@ -42,26 +44,48 @@ pub(crate) fn render_ui(frame: &mut Frame, app: &mut App) {
 
     // Render content based on selected tab
     match app.selected_tab {
-        SelectedTab::Functions => {
+        SelectedTab::Timing => {
             if app.show_function_logs {
                 let content_chunks = Layout::default()
                     .direction(Direction::Horizontal)
                     .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
                     .split(main_chunks[2]);
 
-                functions::render_functions_table(frame, app, content_chunks[0]);
-                logs::render_function_logs_panel(
+                functions_timing::render_functions_table(frame, app, content_chunks[0]);
+                timing_logs::render_function_logs_panel(
                     app.current_function_logs.as_ref(),
                     app.selected_function_name().as_deref(),
-                    &app.functions.hotpath_profiling_mode,
-                    app.functions.total_elapsed,
+                    &app.timing_functions.hotpath_profiling_mode,
+                    app.timing_functions.total_elapsed,
                     content_chunks[1],
                     frame,
                     &mut app.function_logs_table_state,
                     app.functions_focus == FunctionsFocus::Logs,
                 );
             } else {
-                functions::render_functions_table(frame, app, main_chunks[2]);
+                functions_timing::render_functions_table(frame, app, main_chunks[2]);
+            }
+        }
+        SelectedTab::Memory => {
+            if app.show_function_logs {
+                let content_chunks = Layout::default()
+                    .direction(Direction::Horizontal)
+                    .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+                    .split(main_chunks[2]);
+
+                functions_memory::render_functions_table(frame, app, content_chunks[0]);
+                memory_logs::render_function_logs_panel(
+                    app.current_function_logs.as_ref(),
+                    app.selected_function_name().as_deref(),
+                    &app.memory_functions.hotpath_profiling_mode,
+                    app.memory_functions.total_elapsed,
+                    content_chunks[1],
+                    frame,
+                    &mut app.function_logs_table_state,
+                    app.functions_focus == FunctionsFocus::Logs,
+                );
+            } else {
+                functions_memory::render_functions_table(frame, app, main_chunks[2]);
             }
         }
         SelectedTab::Channels => {
@@ -133,7 +157,7 @@ fn render_channels_view(frame: &mut Frame, app: &mut App, area: Rect) {
         (area, None)
     };
 
-    let selected_index = app.table_state.selected().unwrap_or(0);
+    let selected_index = app.channels_table_state.selected().unwrap_or(0);
     let channel_position = selected_index + 1; // 1-indexed
     let total_channels = stats.len();
 
@@ -141,7 +165,7 @@ fn render_channels_view(frame: &mut Frame, app: &mut App, area: Rect) {
         stats,
         table_area,
         frame,
-        &mut app.table_state,
+        &mut app.channels_table_state,
         app.show_logs,
         app.channels_focus,
         channel_position,
@@ -151,7 +175,7 @@ fn render_channels_view(frame: &mut Frame, app: &mut App, area: Rect) {
     // Render logs panel if visible
     if let Some(logs_area) = logs_area {
         let channel_label = app
-            .table_state
+            .channels_table_state
             .selected()
             .and_then(|i| stats.get(i))
             .map(|stat| {
@@ -251,7 +275,7 @@ fn render_streams_view(frame: &mut Frame, app: &mut App, area: Rect) {
         (area, None)
     };
 
-    let selected_index = app.table_state.selected().unwrap_or(0);
+    let selected_index = app.streams_table_state.selected().unwrap_or(0);
     let stream_position = selected_index + 1; // 1-indexed
     let total_streams = stats.len();
 
@@ -259,7 +283,7 @@ fn render_streams_view(frame: &mut Frame, app: &mut App, area: Rect) {
         stats,
         table_area,
         frame,
-        &mut app.table_state,
+        &mut app.streams_table_state,
         app.show_stream_logs,
         app.streams_focus,
         stream_position,
@@ -269,7 +293,7 @@ fn render_streams_view(frame: &mut Frame, app: &mut App, area: Rect) {
     // Render logs panel if visible
     if let Some(logs_area) = logs_area {
         let stream_label = app
-            .table_state
+            .streams_table_state
             .selected()
             .and_then(|i| stats.get(i))
             .map(|stat| {
@@ -339,7 +363,8 @@ fn render_tabs(frame: &mut Frame, area: ratatui::layout::Rect, selected_tab: Sel
     };
 
     let titles = vec![
-        create_tab_line(SelectedTab::Functions),
+        create_tab_line(SelectedTab::Timing),
+        create_tab_line(SelectedTab::Memory),
         create_tab_line(SelectedTab::Channels),
         create_tab_line(SelectedTab::Streams),
     ];

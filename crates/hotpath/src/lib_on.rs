@@ -18,10 +18,12 @@ use crossbeam_channel::Sender;
 
 /// Query request sent from TUI HTTP server to profiler worker thread
 pub enum QueryRequest {
-    /// Request full metrics snapshot
-    GetFunctions(Sender<FunctionsJson>),
+    /// Request full metrics snapshot (allocation metrics) - returns None if hotpath-alloc not enabled
+    GetFunctions(Sender<Option<FunctionsJson>>),
+    /// Request timing metrics snapshot
+    GetFunctionsTiming(Sender<FunctionsJson>),
     /// Request function logs for a specific function (returns None if function not found)
-    GetFunctionCalls {
+    GetFunctionLogs {
         function_name: String,
         response_tx: Sender<Option<FunctionLogsJson>>,
     },
@@ -40,7 +42,7 @@ cfg_if::cfg_if! {
         pub use alloc::guard::MeasurementGuard;
         pub use alloc::state::FunctionStats;
         use alloc::{
-            report::StatsData,
+            report::{StatsData, TimingStatsData},
             state::{HotPathState, Measurement, process_measurement},
         };
     } else {
@@ -567,27 +569,65 @@ impl HotPath {
                             if let Ok(query_request) = result {
                                 match query_request {
                                     QueryRequest::GetFunctions(response_tx) => {
-                                        // Create metrics snapshot
-                                        use output::MetricsProvider;
-                                        let total_elapsed = worker_start_time.elapsed();
-                                        let metrics_provider = StatsData::new(
-                                            &local_stats,
-                                            total_elapsed,
-                                            worker_percentiles.clone(),
-                                            worker_caller_name,
-                                            worker_limit,
-                                        );
-                                        let metrics_json = FunctionsJson::from(&metrics_provider as &dyn MetricsProvider);
-                                        let _ = response_tx.send(metrics_json);
+                                        cfg_if::cfg_if! {
+                                            if #[cfg(feature = "hotpath-alloc")] {
+                                                // Create allocation metrics snapshot
+                                                use output::MetricsProvider;
+                                                let total_elapsed = worker_start_time.elapsed();
+                                                let metrics_provider = StatsData::new(
+                                                    &local_stats,
+                                                    total_elapsed,
+                                                    worker_percentiles.clone(),
+                                                    worker_caller_name,
+                                                    worker_limit,
+                                                );
+                                                let metrics_json = FunctionsJson::from(&metrics_provider as &dyn MetricsProvider);
+                                                let _ = response_tx.send(Some(metrics_json));
+                                            } else {
+                                                // Allocation profiling not available without hotpath-alloc feature
+                                                let _ = response_tx.send(None);
+                                            }
+                                        }
                                     }
-                                    QueryRequest::GetFunctionCalls { function_name, response_tx } => {
+                                    QueryRequest::GetFunctionsTiming(response_tx) => {
+                                        cfg_if::cfg_if! {
+                                            if #[cfg(feature = "hotpath-alloc")] {
+                                                // Create timing metrics snapshot
+                                                use output::MetricsProvider;
+                                                let total_elapsed = worker_start_time.elapsed();
+                                                let metrics_provider = TimingStatsData::new(
+                                                    &local_stats,
+                                                    total_elapsed,
+                                                    worker_percentiles.clone(),
+                                                    worker_caller_name,
+                                                    worker_limit,
+                                                );
+                                                let metrics_json = FunctionsJson::from(&metrics_provider as &dyn MetricsProvider);
+                                                let _ = response_tx.send(metrics_json);
+                                            } else {
+                                                // For time-only mode, GetTimingFunctions returns the same as GetFunctions
+                                                use output::MetricsProvider;
+                                                let total_elapsed = worker_start_time.elapsed();
+                                                let metrics_provider = StatsData::new(
+                                                    &local_stats,
+                                                    total_elapsed,
+                                                    worker_percentiles.clone(),
+                                                    worker_caller_name,
+                                                    worker_limit,
+                                                );
+                                                let metrics_json = FunctionsJson::from(&metrics_provider as &dyn MetricsProvider);
+                                                let _ = response_tx.send(metrics_json);
+                                            }
+                                        }
+                                    }
+                                    QueryRequest::GetFunctionLogs { function_name, response_tx } => {
                                         let response = if let Some(stats) = local_stats.get(function_name.as_str()) {
                                             cfg_if::cfg_if! {
                                                 if #[cfg(feature = "hotpath-alloc")] {
                                                     let logs: Vec<(u64, u64, Option<u64>, u64)> = stats.recent_logs
                                                         .iter()
                                                         .rev()
-                                                        .map(|(bytes, count, elapsed, tid)| (*bytes, elapsed.as_nanos() as u64, Some(*count), *tid))
+                                                        .map(|(bytes, count, _duration_ns, elapsed, tid)| (*bytes, elapsed.as_nanos() as u64, Some(*count), *tid))
                                                         .collect();
                                                 } else {
                                                     let logs: Vec<(u64, u64, Option<u64>, u64)> = stats.recent_logs

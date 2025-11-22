@@ -9,14 +9,18 @@ impl App {
             KeyCode::Char('q') | KeyCode::Char('Q') => self.exit(),
             KeyCode::Char('p') | KeyCode::Char('P') => self.toggle_pause(),
             KeyCode::Char('1') => {
-                self.switch_to_tab(SelectedTab::Functions);
+                self.switch_to_tab(SelectedTab::Timing);
                 self.refresh_data();
             }
             KeyCode::Char('2') => {
-                self.switch_to_tab(SelectedTab::Channels);
+                self.switch_to_tab(SelectedTab::Memory);
                 self.refresh_data();
             }
             KeyCode::Char('3') => {
+                self.switch_to_tab(SelectedTab::Channels);
+                self.refresh_data();
+            }
+            KeyCode::Char('4') => {
                 self.switch_to_tab(SelectedTab::Streams);
                 self.refresh_data();
             }
@@ -51,7 +55,7 @@ impl App {
                     } else {
                         self.focus_streams();
                     }
-                } else if self.selected_tab == SelectedTab::Functions {
+                } else if self.selected_tab.is_functions_tab() {
                     self.focus_functions();
                 }
             }
@@ -60,7 +64,7 @@ impl App {
                     self.focus_logs();
                 } else if self.selected_tab == SelectedTab::Streams {
                     self.focus_stream_logs();
-                } else if self.selected_tab == SelectedTab::Functions {
+                } else if self.selected_tab.is_functions_tab() {
                     self.focus_function_logs();
                 }
             }
@@ -82,7 +86,7 @@ impl App {
                         StreamsFocus::Streams => self.select_next_stream(),
                         StreamsFocus::Logs | StreamsFocus::Inspect => self.select_next_stream_log(),
                     }
-                } else if self.selected_tab == SelectedTab::Functions {
+                } else if self.selected_tab.is_functions_tab() {
                     match self.functions_focus {
                         FunctionsFocus::Functions => {
                             self.next_function();
@@ -105,7 +109,7 @@ impl App {
                             self.select_previous_stream_log()
                         }
                     }
-                } else if self.selected_tab == SelectedTab::Functions {
+                } else if self.selected_tab.is_functions_tab() {
                     match self.functions_focus {
                         FunctionsFocus::Functions => {
                             self.previous_function();

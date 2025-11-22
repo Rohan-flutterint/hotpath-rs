@@ -4,8 +4,16 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-pub enum Measurement {
-    Allocation(&'static str, u64, u64, Duration, bool, bool, bool, u64), // function_name, bytes_total, count_total, elapsed_since_start, unsupported_async, wrapper, cross_thread, tid
+pub struct Measurement {
+    pub name: &'static str,
+    pub bytes_total: u64,
+    pub count_total: u64,
+    pub duration: Duration,
+    pub elapsed_since_start: Duration,
+    pub unsupported_async: bool,
+    pub wrapper: bool,
+    pub cross_thread: bool,
+    pub tid: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -13,11 +21,13 @@ pub struct FunctionStats {
     pub count: u64,
     bytes_total_hist: Option<Histogram<u64>>,
     count_total_hist: Option<Histogram<u64>>,
+    duration_hist: Option<Histogram<u64>>,
+    pub total_duration_ns: u64,
     pub has_data: bool,
     pub has_unsupported_async: bool,
     pub wrapper: bool,
     pub cross_thread: bool,
-    pub recent_logs: VecDeque<(u64, u64, Duration, u64)>, // (bytes, count, elapsed, tid)
+    pub recent_logs: VecDeque<(u64, u64, u64, Duration, u64)>, // (bytes, count, duration_ns, elapsed, tid)
 }
 
 impl FunctionStats {
@@ -25,12 +35,15 @@ impl FunctionStats {
     const HIGH_BYTES: u64 = 1_000_000_000; // 1GB
     const LOW_COUNT: u64 = 1;
     const HIGH_COUNT: u64 = 1_000_000_000; // 1B allocations
+    const LOW_DURATION_NS: u64 = 1;
+    const HIGH_DURATION_NS: u64 = 3_600_000_000_000; // 1 hour in nanoseconds
     const SIGFIGS: u8 = 3;
 
     #[allow(clippy::too_many_arguments)]
     pub fn new_alloc(
         bytes_total: u64,
         count_total: u64,
+        duration: Duration,
         elapsed: Duration,
         unsupported_async: bool,
         wrapper: bool,
@@ -46,13 +59,23 @@ impl FunctionStats {
             Histogram::<u64>::new_with_bounds(Self::LOW_COUNT, Self::HIGH_COUNT, Self::SIGFIGS)
                 .expect("count_total histogram init");
 
+        let duration_hist = Histogram::<u64>::new_with_bounds(
+            Self::LOW_DURATION_NS,
+            Self::HIGH_DURATION_NS,
+            Self::SIGFIGS,
+        )
+        .expect("duration histogram init");
+
+        let duration_ns = duration.as_nanos() as u64;
         let mut recent_logs = VecDeque::with_capacity(recent_logs_limit);
-        recent_logs.push_back((bytes_total, count_total, elapsed, tid));
+        recent_logs.push_back((bytes_total, count_total, duration_ns, elapsed, tid));
 
         let mut s = Self {
             count: 1,
             bytes_total_hist: Some(bytes_total_hist),
             count_total_hist: Some(count_total_hist),
+            duration_hist: Some(duration_hist),
+            total_duration_ns: duration_ns,
             has_data: true,
             has_unsupported_async: unsupported_async,
             wrapper,
@@ -60,6 +83,7 @@ impl FunctionStats {
             recent_logs,
         };
         s.record_alloc(bytes_total, count_total);
+        s.record_duration(duration_ns);
         s
     }
 
@@ -79,10 +103,23 @@ impl FunctionStats {
         }
     }
 
+    #[inline]
+    fn record_duration(&mut self, duration_ns: u64) {
+        if let Some(ref mut duration_hist) = self.duration_hist {
+            if duration_ns > 0 {
+                let clamped_duration =
+                    duration_ns.clamp(Self::LOW_DURATION_NS, Self::HIGH_DURATION_NS);
+                duration_hist.record(clamped_duration).unwrap();
+            }
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
     pub fn update_alloc(
         &mut self,
         bytes_total: u64,
         count_total: u64,
+        duration: Duration,
         elapsed: Duration,
         unsupported_async: bool,
         cross_thread: bool,
@@ -93,12 +130,16 @@ impl FunctionStats {
         self.cross_thread |= cross_thread;
         self.record_alloc(bytes_total, count_total);
 
+        let duration_ns = duration.as_nanos() as u64;
+        self.total_duration_ns += duration_ns;
+        self.record_duration(duration_ns);
+
         if self.recent_logs.len() == self.recent_logs.capacity() && self.recent_logs.capacity() > 0
         {
             self.recent_logs.pop_front();
         }
         self.recent_logs
-            .push_back((bytes_total, count_total, elapsed, tid));
+            .push_back((bytes_total, count_total, duration_ns, elapsed, tid));
     }
 
     #[inline]
@@ -162,6 +203,23 @@ impl FunctionStats {
         }
         self.count_total_hist.as_ref().unwrap().mean() as u64
     }
+
+    #[inline]
+    pub fn duration_percentile(&self, p: f64) -> u64 {
+        if self.count == 0 || self.duration_hist.is_none() {
+            return 0;
+        }
+        let p = p.clamp(0.0, 100.0);
+        self.duration_hist.as_ref().unwrap().value_at_percentile(p)
+    }
+
+    #[inline]
+    pub fn avg_duration_ns(&self) -> u64 {
+        if self.count == 0 || self.duration_hist.is_none() {
+            return 0;
+        }
+        self.duration_hist.as_ref().unwrap().mean() as u64
+    }
 }
 
 pub(crate) struct HotPathState {
@@ -180,51 +238,42 @@ pub(crate) fn process_measurement(
     m: Measurement,
     recent_logs_limit: usize,
 ) {
-    match m {
-        Measurement::Allocation(
-            name,
-            bytes_total,
-            count_total,
-            elapsed,
-            unsupported_async,
-            wrapper,
-            cross_thread,
-            tid,
-        ) => {
-            if let Some(s) = stats.get_mut(name) {
-                s.update_alloc(
-                    bytes_total,
-                    count_total,
-                    elapsed,
-                    unsupported_async,
-                    cross_thread,
-                    tid,
-                );
-            } else {
-                stats.insert(
-                    name,
-                    FunctionStats::new_alloc(
-                        bytes_total,
-                        count_total,
-                        elapsed,
-                        unsupported_async,
-                        wrapper,
-                        cross_thread,
-                        recent_logs_limit,
-                        tid,
-                    ),
-                );
-            }
-        }
+    if let Some(s) = stats.get_mut(m.name) {
+        s.update_alloc(
+            m.bytes_total,
+            m.count_total,
+            m.duration,
+            m.elapsed_since_start,
+            m.unsupported_async,
+            m.cross_thread,
+            m.tid,
+        );
+    } else {
+        stats.insert(
+            m.name,
+            FunctionStats::new_alloc(
+                m.bytes_total,
+                m.count_total,
+                m.duration,
+                m.elapsed_since_start,
+                m.unsupported_async,
+                m.wrapper,
+                m.cross_thread,
+                recent_logs_limit,
+                m.tid,
+            ),
+        );
     }
 }
 
 use crate::lib_on::HOTPATH_STATE;
 
+#[allow(clippy::too_many_arguments)]
 pub fn send_alloc_measurement(
     name: &'static str,
     bytes_total: u64,
     count_total: u64,
+    duration: Duration,
     unsupported_async: bool,
     wrapper: bool,
     cross_thread: bool,
@@ -248,15 +297,16 @@ pub fn send_alloc_measurement(
     };
 
     let elapsed = state_guard.start_time.elapsed();
-    let measurement = Measurement::Allocation(
+    let measurement = Measurement {
         name,
         bytes_total,
         count_total,
-        elapsed,
+        duration,
+        elapsed_since_start: elapsed,
         unsupported_async,
         wrapper,
         cross_thread,
         tid,
-    );
+    };
     let _ = sender.try_send(measurement);
 }

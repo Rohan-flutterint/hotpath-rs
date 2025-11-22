@@ -13,7 +13,7 @@ use ratatui::{
 pub(crate) fn render_functions_table(frame: &mut Frame, app: &mut App, area: Rect) {
     let title = format!(
         " {} - {} ",
-        app.functions.caller_name, app.functions.description
+        app.timing_functions.caller_name, app.timing_functions.description
     );
 
     let header_cells = vec![
@@ -23,7 +23,7 @@ pub(crate) fn render_functions_table(frame: &mut Frame, app: &mut App, area: Rec
     ]
     .into_iter()
     .chain(
-        app.functions
+        app.timing_functions
             .percentiles
             .iter()
             .map(|p| format!("P{}", p))
@@ -41,7 +41,7 @@ pub(crate) fn render_functions_table(frame: &mut Frame, app: &mut App, area: Rec
 
     let header = Row::new(header_cells).height(1);
 
-    let entries = app.get_sorted_measurements();
+    let entries = app.get_timing_measurements();
 
     let rows = entries.iter().map(|(function_name, metrics)| {
         let short_name = hotpath::shorten_function_name(function_name);
@@ -56,7 +56,7 @@ pub(crate) fn render_functions_table(frame: &mut Frame, app: &mut App, area: Rec
     let show_logs = app.show_function_logs;
     let focus = app.functions_focus;
 
-    let num_percentiles = app.functions.percentiles.len();
+    let num_percentiles = app.timing_functions.percentiles.len();
 
     let function_pct: u16 = 35;
     let remaining_pct: u16 = 100 - function_pct;
@@ -115,5 +115,5 @@ pub(crate) fn render_functions_table(frame: &mut Frame, app: &mut App, area: Rec
     )
     .highlight_symbol(">> ");
 
-    frame.render_stateful_widget(table, area, &mut app.table_state);
+    frame.render_stateful_widget(table, area, &mut app.timing_table_state);
 }

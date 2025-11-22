@@ -4,29 +4,31 @@ use super::{App, ChannelsFocus, FunctionsFocus, SelectedTab, StreamsFocus};
 
 impl App {
     pub(crate) fn next_function(&mut self) {
-        let function_count = self.functions.data.0.len();
+        let function_count = self.active_functions().data.0.len();
         if function_count == 0 {
             return;
         }
 
-        let i = match self.table_state.selected() {
+        let table_state = self.active_table_state_mut();
+        let i = match table_state.selected() {
             Some(i) => (i + 1).min(function_count - 1), // Bounded, stop at last
             None => 0,
         };
-        self.table_state.select(Some(i));
+        table_state.select(Some(i));
     }
 
     pub(crate) fn previous_function(&mut self) {
-        let function_count = self.functions.data.0.len();
+        let function_count = self.active_functions().data.0.len();
         if function_count == 0 {
             return;
         }
 
-        let i = match self.table_state.selected() {
+        let table_state = self.active_table_state_mut();
+        let i = match table_state.selected() {
             Some(i) => i.saturating_sub(1), // Bounded, stop at 0
             None => 0,
         };
-        self.table_state.select(Some(i));
+        table_state.select(Some(i));
     }
 
     pub(crate) fn toggle_pause(&mut self) {
@@ -43,11 +45,11 @@ impl App {
             return;
         }
 
-        let i = match self.table_state.selected() {
+        let i = match self.channels_table_state.selected() {
             Some(i) => i.saturating_sub(1),
             None => 0,
         };
-        self.table_state.select(Some(i));
+        self.channels_table_state.select(Some(i));
 
         if self.paused && self.show_logs {
             self.logs = None;
@@ -62,11 +64,11 @@ impl App {
             return;
         }
 
-        let i = match self.table_state.selected() {
+        let i = match self.channels_table_state.selected() {
             Some(i) => (i + 1).min(count - 1),
             None => 0,
         };
-        self.table_state.select(Some(i));
+        self.channels_table_state.select(Some(i));
 
         if self.paused && self.show_logs {
             self.logs = None;
@@ -77,7 +79,7 @@ impl App {
 
     pub(crate) fn toggle_logs(&mut self) {
         let has_valid_selection = self
-            .table_state
+            .channels_table_state
             .selected()
             .map(|i| i < self.channels.channels.len())
             .unwrap_or(false);
@@ -258,11 +260,11 @@ impl App {
             return;
         }
 
-        let i = match self.table_state.selected() {
+        let i = match self.streams_table_state.selected() {
             Some(i) => i.saturating_sub(1),
             None => 0,
         };
-        self.table_state.select(Some(i));
+        self.streams_table_state.select(Some(i));
 
         if self.paused && self.show_stream_logs {
             self.stream_logs = None;
@@ -277,11 +279,11 @@ impl App {
             return;
         }
 
-        let i = match self.table_state.selected() {
+        let i = match self.streams_table_state.selected() {
             Some(i) => (i + 1).min(count - 1),
             None => 0,
         };
-        self.table_state.select(Some(i));
+        self.streams_table_state.select(Some(i));
 
         if self.paused && self.show_stream_logs {
             self.stream_logs = None;
@@ -292,7 +294,7 @@ impl App {
 
     pub(crate) fn toggle_stream_logs(&mut self) {
         let has_valid_selection = self
-            .table_state
+            .streams_table_state
             .selected()
             .map(|i| i < self.streams.streams.len())
             .unwrap_or(false);

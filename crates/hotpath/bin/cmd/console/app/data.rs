@@ -7,15 +7,15 @@ use std::collections::HashMap;
 use std::time::Instant;
 
 impl App {
-    pub(crate) fn update_metrics(&mut self, metrics: FunctionsJson) {
+    pub(crate) fn update_timing_metrics(&mut self, metrics: FunctionsJson) {
         // Capture the currently selected function name (not index!)
         let selected_function_name = self.selected_function_name();
 
-        self.functions = metrics;
+        self.timing_functions = metrics;
         self.last_successful_fetch = Some(Instant::now());
         self.error_message = None;
 
-        let sorted_entries = self.get_sorted_measurements();
+        let sorted_entries = Self::get_sorted_measurements_for(&self.timing_functions);
 
         if let Some(function_name) = selected_function_name {
             // Find the new index of the previously selected function in sorted order
@@ -23,21 +23,59 @@ impl App {
                 .iter()
                 .position(|(name, _)| name == &function_name)
             {
-                self.table_state.select(Some(new_idx));
+                self.timing_table_state.select(Some(new_idx));
             } else {
                 // Function no longer exists, select the last one
                 if !sorted_entries.is_empty() {
-                    self.table_state.select(Some(sorted_entries.len() - 1));
+                    self.timing_table_state
+                        .select(Some(sorted_entries.len() - 1));
                 }
             }
-        } else if let Some(selected) = self.table_state.selected() {
+        } else if let Some(selected) = self.timing_table_state.selected() {
             // Bound check: if current selection is now out of bounds
             if selected >= sorted_entries.len() && !sorted_entries.is_empty() {
-                self.table_state.select(Some(sorted_entries.len() - 1));
+                self.timing_table_state
+                    .select(Some(sorted_entries.len() - 1));
             }
         } else if !sorted_entries.is_empty() {
             // No selection yet, select first item
-            self.table_state.select(Some(0));
+            self.timing_table_state.select(Some(0));
+        }
+    }
+
+    pub(crate) fn update_memory_metrics(&mut self, metrics: FunctionsJson) {
+        // Capture the currently selected function name (not index!)
+        let selected_function_name = self.selected_function_name();
+
+        self.memory_functions = metrics;
+        self.last_successful_fetch = Some(Instant::now());
+        self.error_message = None;
+
+        let sorted_entries = Self::get_sorted_measurements_for(&self.memory_functions);
+
+        if let Some(function_name) = selected_function_name {
+            // Find the new index of the previously selected function in sorted order
+            if let Some(new_idx) = sorted_entries
+                .iter()
+                .position(|(name, _)| name == &function_name)
+            {
+                self.memory_table_state.select(Some(new_idx));
+            } else {
+                // Function no longer exists, select the last one
+                if !sorted_entries.is_empty() {
+                    self.memory_table_state
+                        .select(Some(sorted_entries.len() - 1));
+                }
+            }
+        } else if let Some(selected) = self.memory_table_state.selected() {
+            // Bound check: if current selection is now out of bounds
+            if selected >= sorted_entries.len() && !sorted_entries.is_empty() {
+                self.memory_table_state
+                    .select(Some(sorted_entries.len() - 1));
+            }
+        } else if !sorted_entries.is_empty() {
+            // No selection yet, select first item
+            self.memory_table_state.select(Some(0));
         }
     }
 
@@ -48,7 +86,7 @@ impl App {
     pub(crate) fn update_channels(&mut self, channels: hotpath::channels::ChannelsJson) {
         // Capture the currently selected channel ID (not index!)
         let selected_channel_id = self
-            .table_state
+            .channels_table_state
             .selected()
             .and_then(|idx| self.channels.channels.get(idx))
             .map(|stat| stat.id);
@@ -66,17 +104,17 @@ impl App {
                 .iter()
                 .position(|stat| stat.id == channel_id)
             {
-                self.table_state.select(Some(new_idx));
+                self.channels_table_state.select(Some(new_idx));
             } else {
                 // Channel no longer exists, select the last one if available
                 if !self.channels.channels.is_empty() {
-                    self.table_state
+                    self.channels_table_state
                         .select(Some(self.channels.channels.len() - 1));
                 }
             }
-        } else if let Some(selected) = self.table_state.selected() {
+        } else if let Some(selected) = self.channels_table_state.selected() {
             if selected >= self.channels.channels.len() && !self.channels.channels.is_empty() {
-                self.table_state
+                self.channels_table_state
                     .select(Some(self.channels.channels.len() - 1));
             }
         }
@@ -93,7 +131,7 @@ impl App {
 
         self.logs = None;
 
-        if let Some(selected) = self.table_state.selected() {
+        if let Some(selected) = self.channels_table_state.selected() {
             if !self.channels.channels.is_empty() && selected < self.channels.channels.len() {
                 let channel_id = self.channels.channels[selected].id;
                 if let Ok(logs) = super::super::http::fetch_channel_logs(
@@ -123,12 +161,13 @@ impl App {
         }
     }
 
-    /// Get sorted entries (sorted by percentage, highest first)
-    pub(crate) fn get_sorted_measurements(&self) -> Vec<(String, Vec<hotpath::MetricType>)> {
+    /// Get sorted entries for specific functions data (sorted by percentage, highest first)
+    fn get_sorted_measurements_for(
+        functions: &FunctionsJson,
+    ) -> Vec<(String, Vec<hotpath::MetricType>)> {
         use hotpath::MetricType;
 
-        let mut entries: Vec<(String, Vec<MetricType>)> = self
-            .functions
+        let mut entries: Vec<(String, Vec<MetricType>)> = functions
             .data
             .0
             .iter()
@@ -164,9 +203,30 @@ impl App {
         entries
     }
 
+    /// Get sorted entries (sorted by percentage, highest first)
+    pub(crate) fn get_sorted_measurements(&self) -> Vec<(String, Vec<hotpath::MetricType>)> {
+        let functions = self.active_functions();
+        Self::get_sorted_measurements_for(functions)
+    }
+
+    /// Get sorted timing measurements
+    pub(crate) fn get_timing_measurements(&self) -> Vec<(String, Vec<hotpath::MetricType>)> {
+        Self::get_sorted_measurements_for(&self.timing_functions)
+    }
+
+    /// Get sorted memory measurements
+    pub(crate) fn get_memory_measurements(&self) -> Vec<(String, Vec<hotpath::MetricType>)> {
+        Self::get_sorted_measurements_for(&self.memory_functions)
+    }
+
     pub(crate) fn selected_function_name(&self) -> Option<String> {
         let sorted_entries = self.get_sorted_measurements();
-        self.table_state
+        let table_state = match self.selected_tab {
+            SelectedTab::Timing => &self.timing_table_state,
+            SelectedTab::Memory => &self.memory_table_state,
+            _ => return None,
+        };
+        table_state
             .selected()
             .and_then(|idx| sorted_entries.get(idx).map(|(name, _)| name.clone()))
     }
@@ -210,7 +270,7 @@ impl App {
     pub(crate) fn update_streams(&mut self, streams: StreamsJson) {
         // Capture the currently selected stream ID (not index!)
         let selected_stream_id = self
-            .table_state
+            .streams_table_state
             .selected()
             .and_then(|idx| self.streams.streams.get(idx))
             .map(|stat| stat.id);
@@ -228,17 +288,17 @@ impl App {
                 .iter()
                 .position(|stat| stat.id == stream_id)
             {
-                self.table_state.select(Some(new_idx));
+                self.streams_table_state.select(Some(new_idx));
             } else {
                 // Stream no longer exists, select the last one if available
                 if !self.streams.streams.is_empty() {
-                    self.table_state
+                    self.streams_table_state
                         .select(Some(self.streams.streams.len() - 1));
                 }
             }
-        } else if let Some(selected) = self.table_state.selected() {
+        } else if let Some(selected) = self.streams_table_state.selected() {
             if selected >= self.streams.streams.len() && !self.streams.streams.is_empty() {
-                self.table_state
+                self.streams_table_state
                     .select(Some(self.streams.streams.len() - 1));
             }
         }
@@ -255,7 +315,7 @@ impl App {
 
         self.stream_logs = None;
 
-        if let Some(selected) = self.table_state.selected() {
+        if let Some(selected) = self.streams_table_state.selected() {
             if !self.streams.streams.is_empty() && selected < self.streams.streams.len() {
                 let stream_id = self.streams.streams[selected].id;
                 if let Ok(logs) =
@@ -279,10 +339,29 @@ impl App {
 
     pub(crate) fn refresh_data(&mut self) {
         match self.selected_tab {
-            SelectedTab::Functions => {
-                match super::super::http::fetch_metrics(&self.agent, self.metrics_port) {
+            SelectedTab::Timing => {
+                match super::super::http::fetch_functions_timing(&self.agent, self.metrics_port) {
                     Ok(metrics) => {
-                        self.update_metrics(metrics);
+                        self.update_timing_metrics(metrics);
+                    }
+                    Err(e) => {
+                        self.set_error(format!("{}", e));
+                    }
+                }
+                self.fetch_function_logs_if_open(self.metrics_port);
+            }
+            SelectedTab::Memory => {
+                match super::super::http::fetch_functions_alloc(&self.agent, self.metrics_port) {
+                    Ok(Some(metrics)) => {
+                        self.memory_available = true;
+                        self.update_memory_metrics(metrics);
+                    }
+                    Ok(None) => {
+                        self.memory_available = false;
+                        self.set_error(
+                            "Memory profiling not available - enable hotpath-alloc feature"
+                                .to_string(),
+                        );
                     }
                     Err(e) => {
                         self.set_error(format!("{}", e));

@@ -21,7 +21,8 @@ mod state;
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SelectedTab {
     #[default]
-    Functions,
+    Timing,
+    Memory,
     Channels,
     Streams,
 }
@@ -29,18 +30,24 @@ pub(crate) enum SelectedTab {
 impl SelectedTab {
     pub(crate) fn number(&self) -> u8 {
         match self {
-            SelectedTab::Functions => 1,
-            SelectedTab::Channels => 2,
-            SelectedTab::Streams => 3,
+            SelectedTab::Timing => 1,
+            SelectedTab::Memory => 2,
+            SelectedTab::Channels => 3,
+            SelectedTab::Streams => 4,
         }
     }
 
     pub(crate) fn name(&self) -> &'static str {
         match self {
-            SelectedTab::Functions => "Functions",
+            SelectedTab::Timing => "Timing",
+            SelectedTab::Memory => "Memory",
             SelectedTab::Channels => "Channels",
             SelectedTab::Streams => "Streams",
         }
+    }
+
+    pub(crate) fn is_functions_tab(&self) -> bool {
+        matches!(self, SelectedTab::Timing | SelectedTab::Memory)
     }
 }
 
@@ -88,17 +95,27 @@ pub(crate) struct CachedStreamLogs {
 /// The implementation is split across multiple modules to improve maintainability.
 pub(crate) struct App {
     // Data from profiled application
-    /// Current functions data
-    pub(crate) functions: FunctionsJson,
+    /// Timing functions data (from /functions_timing endpoint)
+    pub(crate) timing_functions: FunctionsJson,
+    /// Memory functions data (from /functions_alloc endpoint)
+    pub(crate) memory_functions: FunctionsJson,
+    /// Whether memory profiling is available (hotpath-alloc feature enabled)
+    pub(crate) memory_available: bool,
     /// Current channels data
     pub(crate) channels: ChannelsJson,
     /// Current streams data
     pub(crate) streams: StreamsJson,
 
-    // UI state - navigation and selection
-    /// Selection state for main table (functions or channels)
-    pub(crate) table_state: TableState,
-    /// Currently selected tab (Functions or Channels)
+    // UI state - navigation and selection per tab
+    /// Selection state for timing tab table
+    pub(crate) timing_table_state: TableState,
+    /// Selection state for memory tab table
+    pub(crate) memory_table_state: TableState,
+    /// Selection state for channels tab table
+    pub(crate) channels_table_state: TableState,
+    /// Selection state for streams tab table
+    pub(crate) streams_table_state: TableState,
+    /// Currently selected tab
     pub(crate) selected_tab: SelectedTab,
     /// Whether automatic refresh is paused
     pub(crate) paused: bool,
@@ -164,15 +181,19 @@ impl App {
             .build();
         let agent: ureq::Agent = config.into();
 
+        let empty_functions = FunctionsJson {
+            hotpath_profiling_mode: hotpath::ProfilingMode::Timing,
+            total_elapsed: 0,
+            description: "Waiting for data...".to_string(),
+            caller_name: "unknown".to_string(),
+            percentiles: vec![95],
+            data: hotpath::FunctionsDataJson(std::collections::HashMap::new()),
+        };
+
         Self {
-            functions: FunctionsJson {
-                hotpath_profiling_mode: hotpath::ProfilingMode::Timing,
-                total_elapsed: 0,
-                description: "Waiting for data...".to_string(),
-                caller_name: "unknown".to_string(),
-                percentiles: vec![95],
-                data: hotpath::FunctionsDataJson(std::collections::HashMap::new()),
-            },
+            timing_functions: empty_functions.clone(),
+            memory_functions: empty_functions,
+            memory_available: true, // Assume available until we know otherwise
             channels: hotpath::channels::ChannelsJson {
                 current_elapsed_ns: 0,
                 channels: vec![],
@@ -181,7 +202,10 @@ impl App {
                 current_elapsed_ns: 0,
                 streams: vec![],
             },
-            table_state: TableState::default().with_selected(0),
+            timing_table_state: TableState::default().with_selected(0),
+            memory_table_state: TableState::default().with_selected(0),
+            channels_table_state: TableState::default().with_selected(0),
+            streams_table_state: TableState::default().with_selected(0),
             selected_tab: SelectedTab::default(),
             paused: false,
             last_refresh: Instant::now(),
@@ -211,6 +235,25 @@ impl App {
     /// Request application exit
     pub(crate) fn exit(&mut self) {
         self.exit = true;
+    }
+
+    /// Get reference to active functions data based on selected tab
+    pub(crate) fn active_functions(&self) -> &FunctionsJson {
+        match self.selected_tab {
+            SelectedTab::Timing => &self.timing_functions,
+            SelectedTab::Memory => &self.memory_functions,
+            _ => unreachable!("active_functions() called on non-functions tab"),
+        }
+    }
+
+    /// Get mutable reference to active table state based on selected tab
+    pub(crate) fn active_table_state_mut(&mut self) -> &mut TableState {
+        match self.selected_tab {
+            SelectedTab::Timing => &mut self.timing_table_state,
+            SelectedTab::Memory => &mut self.memory_table_state,
+            SelectedTab::Channels => &mut self.channels_table_state,
+            SelectedTab::Streams => &mut self.streams_table_state,
+        }
     }
 
     /// Main TUI run loop
