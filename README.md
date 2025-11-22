@@ -37,8 +37,7 @@ hotpath = { version = "0.6", optional = true }
 
 [features]
 hotpath = ["dep:hotpath", "hotpath/hotpath"]
-hotpath-alloc-bytes-total = ["hotpath/hotpath-alloc-bytes-total"]
-hotpath-alloc-count-total = ["hotpath/hotpath-alloc-count-total"]
+hotpath-alloc = ["hotpath/hotpath-alloc"]
 hotpath-off = ["hotpath/hotpath-off"]
 ```
 
@@ -134,17 +133,14 @@ The TUI will connect to your running application and display real-time profiling
 
 In addition to time-based profiling, `hotpath` can track memory allocations. This feature uses a custom global allocator from [allocation-counter crate](https://github.com/fornwall/allocation-counter) to intercept all memory allocations and provides detailed statistics about memory usage per function.
 
-Available alloc profiling modes:
-
-- `hotpath-alloc-bytes-total` - Tracks total bytes allocated during each function call
-- `hotpath-alloc-count-total` - Tracks total number of allocations per function call
+The `hotpath-alloc` feature tracks **both** bytes allocated and allocation count simultaneously, displaying them together (e.g., "5.2 KB | 42").
 
 By default, allocation tracking is **cumulative**, meaning that a function's allocation count includes all allocations made by functions it calls (nested calls). Notably, it produces invalid results for recursive functions. To track only **exclusive** allocations (direct allocations made by each function, excluding nested calls), set the `HOTPATH_ALLOC_SELF=true` environment variable when running your program.
 
-Run your program with a selected flag to print a similar report:
+Run your program with the allocation tracking feature to print a similar report:
 
 ```
-cargo run --features='hotpath,hotpath-alloc-bytes-total'
+cargo run --features='hotpath,hotpath-alloc'
 ```
 
 ![Alloc report](hotpath-alloc-report.png)
@@ -154,19 +150,13 @@ cargo run --features='hotpath,hotpath-alloc-bytes-total'
 To profile memory usage of `async` functions you have to use a similar config:
 
 ```rust
-#[cfg(any(
-    feature = "hotpath-alloc-bytes-total",
-    feature = "hotpath-alloc-count-total",
-))]
+#[cfg(feature = "hotpath-alloc")]
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
     _ = inner_main().await;
 }
 
-#[cfg(not(any(
-    feature = "hotpath-alloc-bytes-total",
-    feature = "hotpath-alloc-count-total",
-)))]
+#[cfg(not(feature = "hotpath-alloc"))]
 #[tokio::main]
 async fn main() {
     _ = inner_main().await;
@@ -178,7 +168,7 @@ async fn inner_main() {
 }
 ```
 
-It ensures that tokio runs in a `current_thread` runtime mode if any of the allocation profiling flags is enabled.
+It ensures that tokio runs in a `current_thread` runtime mode if the allocation profiling feature is enabled.
 
 **Why this limitation exists**: The allocation tracking uses thread-local storage to track memory usage. In multi-threaded runtimes, async tasks can migrate between threads, making it impossible to accurately attribute allocations to specific function calls.
 
@@ -459,6 +449,6 @@ hyperfine --warmup 3 './target/release/examples/benchmark'
 
 Allocations:
 ```
-cargo build --example benchmark --features='hotpath,hotpath-alloc-count-total' --release
+cargo build --example benchmark --features='hotpath,hotpath-alloc' --release
 hyperfine --warmup 3 './target/release/examples/benchmark'
 ```

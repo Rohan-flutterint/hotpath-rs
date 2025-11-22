@@ -54,9 +54,9 @@ pub(crate) fn render_function_logs_panel(frame: &mut Frame, area: Rect, app: &Ap
             .logs
             .iter()
             .enumerate()
-            .map(|(idx, &(value, elapsed_nanos))| {
+            .map(|(idx, &(value, elapsed_nanos, count))| {
                 let formatted_value =
-                    format_log_value(value, &app.functions.hotpath_profiling_mode);
+                    format_log_value(value, count, &app.functions.hotpath_profiling_mode);
 
                 let total_elapsed = app.functions.total_elapsed;
                 let time_ago_str = if total_elapsed >= elapsed_nanos {
@@ -116,12 +116,19 @@ pub(crate) fn render_function_logs_panel(frame: &mut Frame, area: Rect, app: &Ap
     }
 }
 
-fn format_log_value(value: u64, profiling_mode: &hotpath::ProfilingMode) -> String {
+fn format_log_value(
+    value: u64,
+    count: Option<u64>,
+    profiling_mode: &hotpath::ProfilingMode,
+) -> String {
     match profiling_mode {
         hotpath::ProfilingMode::Timing => hotpath::format_duration(value),
-        hotpath::ProfilingMode::AllocBytesTotal => hotpath::format_bytes(value),
-        hotpath::ProfilingMode::AllocCountTotal => {
-            format!("{}", value)
+        hotpath::ProfilingMode::Alloc => {
+            if let Some(count) = count {
+                format!("{} | {}", hotpath::format_bytes(value), count)
+            } else {
+                hotpath::format_bytes(value)
+            }
         }
     }
 }

@@ -4,7 +4,7 @@ pub mod tests {
 
     #[test]
     fn test_basic_output() {
-        let features = ["", "hotpath-alloc-bytes-total", "hotpath-alloc-count-total"];
+        let features = ["", "hotpath-alloc", "hotpath-alloc"];
 
         for feature in features {
             let features_arg = if feature.is_empty() {
@@ -53,11 +53,7 @@ pub mod tests {
 
     #[test]
     fn test_early_returns_output() {
-        let features = [
-            "hotpath",
-            "hotpath-alloc-bytes-total",
-            "hotpath-alloc-count-total",
-        ];
+        let features = ["hotpath", "hotpath-alloc", "hotpath-alloc"];
         for feature in features {
             let features_arg = if feature == "hotpath" {
                 "hotpath".to_string()
@@ -110,7 +106,7 @@ pub mod tests {
                 "--example",
                 "unsupported_async",
                 "--features",
-                "hotpath,hotpath-alloc-bytes-total",
+                "hotpath,hotpath-alloc",
             ])
             .output()
             .expect("Failed to execute command");
@@ -280,7 +276,7 @@ pub mod tests {
                 "--example",
                 "basic_smol",
                 "--features",
-                "hotpath,hotpath-alloc-bytes-total",
+                "hotpath,hotpath-alloc",
                 "--",
                 "--nocapture",
             ])
@@ -648,7 +644,7 @@ pub mod tests {
                 "--example",
                 "limit",
                 "--features",
-                "hotpath,hotpath-alloc-bytes-total",
+                "hotpath,hotpath-alloc",
             ])
             .output()
             .expect("Failed to execute command");
@@ -688,10 +684,10 @@ pub mod tests {
     #[test]
     fn test_multithread_alloc_no_panic() {
         let test_cases = [
-            ("hotpath,hotpath-alloc-count-total", None),
-            ("hotpath,hotpath-alloc-bytes-total", None),
-            ("hotpath,hotpath-alloc-count-total", Some("true")),
-            ("hotpath,hotpath-alloc-bytes-total", Some("true")),
+            ("hotpath,hotpath-alloc", None),
+            ("hotpath,hotpath-alloc", None),
+            ("hotpath,hotpath-alloc", Some("true")),
+            ("hotpath,hotpath-alloc", Some("true")),
         ];
 
         for (features, alloc_self) in test_cases {

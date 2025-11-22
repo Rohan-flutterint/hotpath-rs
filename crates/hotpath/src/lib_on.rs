@@ -28,10 +28,7 @@ pub enum QueryRequest {
 }
 
 cfg_if::cfg_if! {
-    if #[cfg(any(
-        feature = "hotpath-alloc-bytes-total",
-        feature = "hotpath-alloc-count-total"
-    ))] {
+    if #[cfg(feature = "hotpath-alloc")] {
         mod alloc;
         #[doc(hidden)]
         pub use tokio::runtime::{Handle, RuntimeFlavor};
@@ -40,6 +37,12 @@ cfg_if::cfg_if! {
         #[global_allocator]
         static GLOBAL: alloc::allocator::CountingAllocator = alloc::allocator::CountingAllocator {};
 
+        pub use alloc::guard::MeasurementGuard;
+        pub use alloc::state::FunctionStats;
+        use alloc::{
+            report::StatsData,
+            state::{HotPathState, Measurement, process_measurement},
+        };
     } else {
         // Time-based profiling (when no allocation features are enabled)
         mod time;
@@ -60,10 +63,7 @@ impl MeasurementGuard {
             false
         } else {
             cfg_if::cfg_if! {
-                if #[cfg(any(
-                    feature = "hotpath-alloc-bytes-total",
-                    feature = "hotpath-alloc-count-total"
-                ))] {
+                if #[cfg(feature = "hotpath-alloc")] {
                     // For allocation profiling: mark async as unsupported unless
                     // running on Tokio CurrentThread. Non-Tokio runtimes are unsupported.
                     if _is_async {
@@ -81,26 +81,6 @@ impl MeasurementGuard {
         };
 
         MeasurementGuard::new(measurement_name, wrapper, unsupported_async)
-    }
-}
-
-cfg_if::cfg_if! {
-    if #[cfg(feature = "hotpath-alloc-bytes-total")] {
-        mod alloc_bytes_total;
-        pub use alloc_bytes_total::guard::MeasurementGuard;
-        pub use alloc_bytes_total::state::FunctionStats;
-        use alloc_bytes_total::{
-            report::StatsData,
-            state::{HotPathState, Measurement, process_measurement},
-        };
-    } else if #[cfg(feature = "hotpath-alloc-count-total")] {
-        mod alloc_count_total;
-        pub use alloc_count_total::guard::MeasurementGuard;
-        pub use alloc_count_total::state::FunctionStats;
-        use alloc_count_total::{
-            report::StatsData,
-            state::{HotPathState, Measurement, process_measurement},
-        };
     }
 }
 
@@ -200,12 +180,6 @@ use std::sync::OnceLock;
 use std::sync::RwLock;
 
 use crate::Reporter;
-
-#[cfg(all(
-    feature = "hotpath-alloc-bytes-total",
-    feature = "hotpath-alloc-count-total"
-))]
-compile_error!("Only one allocation feature can be enabled at a time");
 
 pub(crate) static HOTPATH_STATE: OnceLock<ArcSwapOption<RwLock<HotPathState>>> = OnceLock::new();
 
@@ -601,11 +575,21 @@ impl HotPath {
                                     }
                                     QueryRequest::GetFunctionCalls { function_name, response_tx } => {
                                         let response = if let Some(stats) = local_stats.get(function_name.as_str()) {
-                                            let logs: Vec<(u64, u64)> = stats.recent_logs
-                                                .iter()
-                                                .rev()
-                                                .map(|(val, elapsed)| (*val, elapsed.as_nanos() as u64))
-                                                .collect();
+                                            cfg_if::cfg_if! {
+                                                if #[cfg(feature = "hotpath-alloc")] {
+                                                    let logs: Vec<(u64, u64, Option<u64>)> = stats.recent_logs
+                                                        .iter()
+                                                        .rev()
+                                                        .map(|(bytes, count, elapsed)| (*bytes, elapsed.as_nanos() as u64, Some(*count)))
+                                                        .collect();
+                                                } else {
+                                                    let logs: Vec<(u64, u64, Option<u64>)> = stats.recent_logs
+                                                        .iter()
+                                                        .rev()
+                                                        .map(|(duration_ns, elapsed)| (*duration_ns, elapsed.as_nanos() as u64, None))
+                                                        .collect();
+                                                }
+                                            }
                                             Some(FunctionLogsJson {
                                                 function_name,
                                                 logs,

@@ -15,11 +15,7 @@ pub struct CountingAllocator;
 
 unsafe impl GlobalAlloc for CountingAllocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        #[cfg(feature = "hotpath-alloc-bytes-total")]
-        crate::lib_on::alloc_bytes_total::core::track_alloc(layout.size());
-
-        #[cfg(feature = "hotpath-alloc-count-total")]
-        crate::lib_on::alloc_count_total::core::track_alloc();
+        super::core::track_alloc(layout.size());
 
         unsafe { System.alloc(layout) }
     }

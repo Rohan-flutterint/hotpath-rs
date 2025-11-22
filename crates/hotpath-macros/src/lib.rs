@@ -249,8 +249,8 @@ pub fn main(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// * **Time profiling** (default): Execution duration using high-precision timers
 /// * **Allocation profiling**: Memory allocations when allocation features are enabled
-///   - `hotpath-alloc-bytes-total` - Total bytes allocated
-///   - `hotpath-alloc-count-total` - Total allocation count
+///   - `hotpath-alloc` - Total bytes allocated
+///   - `hotpath-alloc` - Total allocation count
 ///
 /// # Async Function Limitations
 ///

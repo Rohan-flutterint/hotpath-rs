@@ -82,8 +82,7 @@ impl ProfilePrArgs {
 pub enum MetricDiff {
     CallsCount(u64, u64), // (before, after)
     DurationNs(u64, u64), // (before, after) - Duration in nanoseconds
-    AllocBytes(u64, u64), // (before, after) - Bytes allocated
-    AllocCount(u64, u64), // (before, after) - Allocation count
+    Alloc(u64, u64),      // (before, after) - Bytes allocated
     Percentage(u64, u64), // (before, after)
 }
 
@@ -111,7 +110,7 @@ impl MetricDiff {
                     before_duration, after_duration, diff_percent, emoji
                 )
             }
-            MetricDiff::AllocBytes(before, after) => {
+            MetricDiff::Alloc(before, after) => {
                 let diff_percent = calculate_percentage_diff(*before, *after);
                 let emoji = get_emoji_for_diff(diff_percent, emoji_threshold);
                 format!(
@@ -121,11 +120,6 @@ impl MetricDiff {
                     diff_percent,
                     emoji
                 )
-            }
-            MetricDiff::AllocCount(before, after) => {
-                let diff_percent = calculate_percentage_diff(*before, *after);
-                let emoji = get_emoji_for_diff(diff_percent, emoji_threshold);
-                format!("{} → {} ({:+.1}%){}", before, after, diff_percent, emoji)
             }
             MetricDiff::Percentage(before, after) => {
                 let diff_percent = calculate_percentage_diff(*before, *after);
@@ -209,11 +203,8 @@ fn compare_metrics(
                         (MetricType::DurationNs(before_val), MetricType::DurationNs(after_val)) => {
                             MetricDiff::DurationNs(*before_val, *after_val)
                         }
-                        (MetricType::AllocBytes(before_val), MetricType::AllocBytes(after_val)) => {
-                            MetricDiff::AllocBytes(*before_val, *after_val)
-                        }
-                        (MetricType::AllocCount(before_val), MetricType::AllocCount(after_val)) => {
-                            MetricDiff::AllocCount(*before_val, *after_val)
+                        (MetricType::Alloc(before_val, _), MetricType::Alloc(after_val, _)) => {
+                            MetricDiff::Alloc(*before_val, *after_val)
                         }
                         (MetricType::Percentage(before_val), MetricType::Percentage(after_val)) => {
                             MetricDiff::Percentage(*before_val, *after_val)
@@ -238,8 +229,7 @@ fn compare_metrics(
                 let diff = match after_metric {
                     MetricType::CallsCount(after_val) => MetricDiff::CallsCount(0, *after_val),
                     MetricType::DurationNs(after_val) => MetricDiff::DurationNs(0, *after_val),
-                    MetricType::AllocBytes(after_val) => MetricDiff::AllocBytes(0, *after_val),
-                    MetricType::AllocCount(after_val) => MetricDiff::AllocCount(0, *after_val),
+                    MetricType::Alloc(after_val, _) => MetricDiff::Alloc(0, *after_val),
                     MetricType::Percentage(after_val) => MetricDiff::Percentage(0, *after_val),
                     MetricType::Unsupported => continue,
                 };
@@ -266,8 +256,7 @@ fn compare_metrics(
                 let diff = match before_metric {
                     MetricType::CallsCount(before_val) => MetricDiff::CallsCount(*before_val, 0),
                     MetricType::DurationNs(before_val) => MetricDiff::DurationNs(*before_val, 0),
-                    MetricType::AllocBytes(before_val) => MetricDiff::AllocBytes(*before_val, 0),
-                    MetricType::AllocCount(before_val) => MetricDiff::AllocCount(*before_val, 0),
+                    MetricType::Alloc(before_val, _) => MetricDiff::Alloc(*before_val, 0),
                     MetricType::Percentage(before_val) => MetricDiff::Percentage(*before_val, 0),
                     MetricType::Unsupported => continue,
                 };

@@ -41,8 +41,7 @@ use std::time::Duration;
 pub enum MetricType {
     CallsCount(u64), // Number of function calls
     DurationNs(u64), // Duration in nanoseconds
-    AllocBytes(u64), // Bytes allocated
-    AllocCount(u64), // Allocation count
+    Alloc(u64, u64), // Bytes allocated, objects allocated
     Percentage(u64), // Percentage as basis points (1% = 100)
     Unsupported,     // For N/A values (async functions when not supported)
 }
@@ -55,8 +54,7 @@ impl Serialize for MetricType {
         match self {
             MetricType::CallsCount(count) => serializer.serialize_u64(*count),
             MetricType::DurationNs(ns) => serializer.serialize_u64(*ns),
-            MetricType::AllocBytes(bytes) => serializer.serialize_u64(*bytes),
-            MetricType::AllocCount(count) => serializer.serialize_u64(*count),
+            MetricType::Alloc(bytes, _count) => serializer.serialize_u64(*bytes),
             MetricType::Percentage(basis_points) => serializer.serialize_u64(*basis_points),
             MetricType::Unsupported => serializer.serialize_none(),
         }
@@ -72,11 +70,8 @@ impl fmt::Display for MetricType {
             MetricType::DurationNs(ns) => {
                 write!(f, "{}", format_duration(*ns))
             }
-            MetricType::AllocBytes(bytes) => {
+            MetricType::Alloc(bytes, _count) => {
                 write!(f, "{}", format_bytes(*bytes))
-            }
-            MetricType::AllocCount(count) => {
-                write!(f, "{}", count)
             }
             MetricType::Percentage(basis_points) => {
                 write!(f, "{:.2}%", *basis_points as f64 / 100.0)
@@ -172,33 +167,32 @@ pub trait Reporter: Send + Sync {
 /// # Variants
 ///
 /// * `Timing` - Time-based profiling (execution duration)
-/// * `AllocBytesTotal` - Total bytes allocated per function call
-/// * `AllocCountTotal` - Total allocation count per function call
+/// * `Alloc` - Combined allocation profiling (both bytes and count)
 #[allow(dead_code)]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "kebab-case")]
 pub enum ProfilingMode {
     Timing,
-    AllocBytesTotal,
-    AllocCountTotal,
+    Alloc,
 }
 
 impl fmt::Display for ProfilingMode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ProfilingMode::Timing => write!(f, "timing"),
-            ProfilingMode::AllocBytesTotal => write!(f, "alloc_bytes_total"),
-            ProfilingMode::AllocCountTotal => write!(f, "alloc_count_total"),
+            ProfilingMode::Alloc => write!(f, "alloc"),
         }
     }
 }
 
 /// Response containing recent logs for a function
-/// Each log entry is a tuple of (value, elapsed_nanos)
+/// Each log entry is a tuple of (value, elapsed_nanos, optional_alloc_count)
+/// - For timing mode: (duration_ns, elapsed_nanos, None)
+/// - For alloc mode: (bytes, elapsed_nanos, Some(count))
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FunctionLogsJson {
     pub function_name: String,
-    pub logs: Vec<(u64, u64)>,
+    pub logs: Vec<(u64, u64, Option<u64>)>,
     pub count: usize,
 }
 
@@ -405,14 +399,12 @@ fn create_metric_type(field_name: &str, value: u64, profiling_mode: &ProfilingMo
         name if name.starts_with('p') && name[1..].chars().all(|c| c.is_ascii_digit()) => {
             match profiling_mode {
                 ProfilingMode::Timing => MetricType::DurationNs(value),
-                ProfilingMode::AllocBytesTotal => MetricType::AllocBytes(value),
-                ProfilingMode::AllocCountTotal => MetricType::AllocCount(value),
+                ProfilingMode::Alloc => MetricType::Alloc(value, 0),
             }
         }
         "avg" | "total" => match profiling_mode {
             ProfilingMode::Timing => MetricType::DurationNs(value),
-            ProfilingMode::AllocBytesTotal => MetricType::AllocBytes(value),
-            ProfilingMode::AllocCountTotal => MetricType::AllocCount(value),
+            ProfilingMode::Alloc => MetricType::Alloc(value, 0),
         },
         _ => unreachable!(),
     }
@@ -466,10 +458,8 @@ impl From<&dyn MetricsProvider<'_>> for FunctionsJson {
 impl FunctionsJson {
     fn determine_profiling_mode() -> ProfilingMode {
         cfg_if::cfg_if! {
-            if #[cfg(feature = "hotpath-alloc-bytes-total")] {
-                ProfilingMode::AllocBytesTotal
-            } else if #[cfg(feature = "hotpath-alloc-count-total")] {
-                ProfilingMode::AllocCountTotal
+            if #[cfg(feature = "hotpath-alloc")] {
+                ProfilingMode::Alloc
             } else {
                 ProfilingMode::Timing
             }
@@ -800,108 +790,6 @@ mod tests {
         assert!(matches!(first_row[1], MetricType::DurationNs(_))); // avg
         assert!(matches!(first_row[2], MetricType::DurationNs(_))); // p95
         assert!(matches!(first_row[3], MetricType::DurationNs(_))); // total
-        assert!(matches!(first_row[4], MetricType::Percentage(_))); // percent_total
-    }
-
-    #[test]
-    fn test_deserialize_alloc_count_total_mode() {
-        let json_str = r#"{
-            "hotpath_profiling_mode": "alloc-count-total",
-            "total_elapsed": 123762083,
-            "caller_name": "basic::main",
-            "description": "Total allocation count",
-            "output": {
-                "basic::sync_function": {
-                    "calls": 100,
-                    "avg": 2,
-                    "p95": 2,
-                    "total": 200,
-                    "percent_total": 3333
-                },
-                "basic::async_function": {
-                    "calls": 100,
-                    "avg": 2,
-                    "p95": 2,
-                    "total": 200,
-                    "percent_total": 3333
-                },
-                "custom_block": {
-                    "calls": 100,
-                    "avg": 2,
-                    "p95": 2,
-                    "total": 200,
-                    "percent_total": 3333
-                }
-            }
-        }"#;
-
-        let metrics: FunctionsJson = serde_json::from_str(json_str)
-            .expect("Failed to deserialize alloc-count-total mode JSON");
-
-        assert!(matches!(
-            metrics.hotpath_profiling_mode,
-            ProfilingMode::AllocCountTotal
-        ));
-        assert_eq!(metrics.total_elapsed, 123762083);
-        assert_eq!(metrics.caller_name, "basic::main");
-        assert_eq!(metrics.data.0.len(), 3);
-
-        let first_row = metrics.data.0.values().next().unwrap();
-        assert!(matches!(first_row[0], MetricType::CallsCount(_))); // calls
-        assert!(matches!(first_row[1], MetricType::AllocCount(_))); // avg
-        assert!(matches!(first_row[2], MetricType::AllocCount(_))); // p95
-        assert!(matches!(first_row[3], MetricType::AllocCount(_))); // total
-        assert!(matches!(first_row[4], MetricType::Percentage(_))); // percent_total
-    }
-
-    #[test]
-    fn test_deserialize_alloc_bytes_total_mode() {
-        let json_str = r#"{
-            "hotpath_profiling_mode": "alloc-bytes-total",
-            "total_elapsed": 121738041,
-            "caller_name": "basic::main",
-            "description": "Bytes allocated",
-            "output": {
-                "custom_block": {
-                    "calls": 100,
-                    "avg": 1088,
-                    "p95": 1088,
-                    "total": 108800,
-                    "percent_total": 8292
-                },
-                "basic::sync_function": {
-                    "calls": 100,
-                    "avg": 152,
-                    "p95": 152,
-                    "total": 15200,
-                    "percent_total": 1158
-                },
-                "basic::async_function": {
-                    "calls": 100,
-                    "avg": 72,
-                    "p95": 72,
-                    "total": 7200,
-                    "percent_total": 548
-                }
-            }
-        }"#;
-
-        let metrics: FunctionsJson = serde_json::from_str(json_str)
-            .expect("Failed to deserialize alloc-bytes-total mode JSON");
-
-        assert!(matches!(
-            metrics.hotpath_profiling_mode,
-            ProfilingMode::AllocBytesTotal
-        ));
-        assert_eq!(metrics.total_elapsed, 121738041);
-        assert_eq!(metrics.caller_name, "basic::main");
-        assert_eq!(metrics.data.0.len(), 3);
-
-        let first_row = metrics.data.0.values().next().unwrap();
-        assert!(matches!(first_row[0], MetricType::CallsCount(_))); // calls
-        assert!(matches!(first_row[1], MetricType::AllocBytes(_))); // avg
-        assert!(matches!(first_row[2], MetricType::AllocBytes(_))); // p95
-        assert!(matches!(first_row[3], MetricType::AllocBytes(_))); // total
         assert!(matches!(first_row[4], MetricType::Percentage(_))); // percent_total
     }
 

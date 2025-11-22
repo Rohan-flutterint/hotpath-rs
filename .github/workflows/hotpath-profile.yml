@@ -35,7 +35,7 @@ jobs:
           # Extract alloc metrics from head branch
           {
             echo 'metrics<<EOF'
-            cargo run --example benchmark --features='hotpath,hotpath-alloc-count-total' | grep '^{"hotpath_profiling_mode"'
+            cargo run --example benchmark --features='hotpath,hotpath-alloc' | grep '^{"hotpath_profiling_mode"'
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
 
@@ -61,7 +61,7 @@ jobs:
           # Extract alloc metrics from base branch
           {
             echo 'metrics<<EOF'
-            cargo run --example benchmark --features='hotpath,hotpath-alloc-count-total' | grep '^{"hotpath_profiling_mode"'
+            cargo run --example benchmark --features='hotpath,hotpath-alloc' | grep '^{"hotpath_profiling_mode"'
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
 

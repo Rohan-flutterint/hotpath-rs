@@ -33,7 +33,7 @@ impl Reporter for UnitTestReporter {
         dbg!(sync_function_metrics);
 
         let alloc_count = &sync_function_metrics[1];
-        if let hotpath::MetricType::AllocCount(count) = alloc_count {
+        if let hotpath::MetricType::Alloc(_bytes, count) = alloc_count {
             assert!(*count < 3, "AllocCount is not less than 3: {}", count);
         } else {
             panic!("Expected AllocCount metric, got {:?}", alloc_count);

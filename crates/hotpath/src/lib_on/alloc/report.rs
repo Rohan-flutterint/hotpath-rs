@@ -31,15 +31,14 @@ impl<'a> MetricsProvider<'a> for StatsData<'a> {
     }
 
     fn profiling_mode(&self) -> ProfilingMode {
-        ProfilingMode::AllocBytesTotal
+        ProfilingMode::Alloc
     }
 
     fn description(&self) -> String {
-        if super::super::alloc::shared::is_alloc_self_enabled() {
-            "Exclusive bytes allocated by each function (excluding nested calls).".to_string()
+        if super::shared::is_alloc_self_enabled() {
+            "Exclusive allocations by each function (excluding nested calls).".to_string()
         } else {
-            "Cumulative bytes allocated during each function call (including nested calls)."
-                .to_string()
+            "Cumulative allocations during each function call (including nested calls).".to_string()
         }
     }
 
@@ -58,6 +57,7 @@ impl<'a> MetricsProvider<'a> for StatsData<'a> {
             .filter(|(_, s)| s.has_data && !(s.wrapper && s.cross_thread))
             .collect();
 
+        // Sort by bytes (primary metric as requested by user)
         filtered_stats.sort_by(|a, b| b.1.total_bytes().cmp(&a.1.total_bytes()));
 
         let filtered_stats = if self.limit > 0 {
@@ -69,7 +69,7 @@ impl<'a> MetricsProvider<'a> for StatsData<'a> {
             filtered_stats
         };
 
-        let grand_total_bytes: u64 = if super::super::alloc::shared::is_alloc_self_enabled() {
+        let grand_total_bytes: u64 = if super::shared::is_alloc_self_enabled() {
             self.stats
                 .iter()
                 .filter(|(_, s)| s.has_data)
@@ -117,7 +117,7 @@ impl<'a> MetricsProvider<'a> for StatsData<'a> {
                 } else {
                     vec![
                         MetricType::CallsCount(stats.count),
-                        MetricType::AllocBytes(stats.avg_bytes()),
+                        MetricType::Alloc(stats.avg_bytes(), stats.avg_count()),
                     ]
                 };
 
@@ -126,7 +126,8 @@ impl<'a> MetricsProvider<'a> for StatsData<'a> {
                         metrics.push(MetricType::Unsupported);
                     } else {
                         let bytes_total = stats.bytes_total_percentile(p as f64);
-                        metrics.push(MetricType::AllocBytes(bytes_total));
+                        let count_total = stats.count_total_percentile(p as f64);
+                        metrics.push(MetricType::Alloc(bytes_total, count_total));
                     }
                 }
 
@@ -134,7 +135,7 @@ impl<'a> MetricsProvider<'a> for StatsData<'a> {
                     metrics.push(MetricType::Unsupported);
                     metrics.push(MetricType::Unsupported);
                 } else {
-                    metrics.push(MetricType::AllocBytes(stats.total_bytes()));
+                    metrics.push(MetricType::Alloc(stats.total_bytes(), stats.total_count()));
                     metrics.push(MetricType::Percentage((percentage * 100.0) as u64));
                 }
 
