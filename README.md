@@ -1,39 +1,35 @@
-# hotpath - find and profile bottlenecks in Rust
+# hotpath - real-time Rust performance and data flow profiler
 [![Latest Version](https://img.shields.io/crates/v/hotpath.svg)](https://crates.io/crates/hotpath) [![GH Actions](https://github.com/pawurb/hotpath/actions/workflows/ci.yml/badge.svg)](https://github.com/pawurb/hotpath/actions)
 
 [![Profiling report for mevlog-rs](hotpath-timing-report.png)](https://github.com/pawurb/mevlog-rs)
 
-A lightweight, easy-to-configure Rust profiler that shows exactly where your code spends time and allocates memory. Instrument any function or code block to quickly spot bottlenecks, and focus your optimizations where they matter most.
+A lightweight Rust profiler for latency, memory, and data-flow insight. Instrument functions, channels, and streams to find bottlenecks and optimize where it counts.
 
 In [this post](https://pawelurbanek.com/rust-optimize-performance), I explain the motivation behind the project and its inner workings.
 
-BTW if you're into Rust perf also check out a new [channels-console](https://github.com/pawurb/channels-console) crate.
-
 ## Features
 
-- **Zero-cost when disabled** — fully gated by a feature flag.
+- **Zero-cost when disabled** - fully gated by a feature flag.
 - **Low-overhead** profiling for both sync and async code.
-- **Live TUI dashboard** — real-time monitoring of performance metrics with terminal-based interface.
-- **Memory allocation tracking** — track bytes allocated or allocation counts per function.
+- **Live TUI dashboard** - real-time monitoring of performance data flow metrics in TUI dashboard (built with [ratatui.rs](https://ratatui.rs/)).
+- **Static reports for one-off programs** - alternatively print profiling summaries without running the TUI.
+- **Memory allocation tracking** - track bytes allocated and allocation counts per function.
+- **Channel and stream monitoring** - instrument channels and streams to track message flow and throughput.
 - **Detailed stats**: avg, total time, call count, % of total runtime, and configurable percentiles (p95, p99, etc.).
 - **Background processing** for minimal profiling impact.
 - **GitHub Actions integration** - configure CI to automatically benchmark your program against a base branch for each PR
-
-![hotpath GitHub Actions](mevlog-enable-cache.png)
-
-See [hotpath-profile](https://github.com/pawurb/hotpath/blob/main/.github/workflows/hotpath-profile.yml) and [hotpath-comment](https://github.com/pawurb/hotpath/blob/main/.github/workflows/hotpath-comment.yml) for a sample config.
 
 ## Quick Start
 
 > **⚠️ Note**  
 > This README reflects the latest development on the `main` branch.
-> For documentation matching the current release, see [crates.io](https://crates.io/crates/hotpath) — it stays in sync with the published crate.
+> For documentation matching the current release, see [crates.io](https://crates.io/crates/hotpath) - it stays in sync with the published crate.
 
 Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-hotpath = { version = "0.6", optional = true }
+hotpath = { version = "0.7", optional = true }
 
 [features]
 hotpath = ["dep:hotpath", "hotpath/hotpath"]
@@ -104,7 +100,7 @@ Output:
 
 ![hotpath TUI Example](hotpath-tui.gif)
 
-`hotpath` includes a live terminal-based dashboard for real-time monitoring of profiling metrics. This is particularly useful for long-running applications like web servers, where you want to observe performance characteristics while the application is running.
+`hotpath` includes a live terminal-based dashboard for real-time monitoring of profiling metrics, including function performance, channel statistics, and stream throughput. This is particularly useful for long-running applications like web servers, where you want to observe performance characteristics while the application is running.
 
 ### Getting Started with TUI
 
@@ -114,17 +110,16 @@ Output:
 cargo install hotpath --features tui
 ```
 
-**2. Start your application with the HTTP metrics server enabled:**
+**2. Start your application with `--features=hotpath`:**
 
 ```bash
-# Set HOTPATH_HTTP_PORT to enable the metrics server
-HOTPATH_HTTP_PORT=6870 cargo run --features hotpath
+cargo run --features hotpath
 ```
 
 **3. In a separate terminal, launch the TUI console:**
 
 ```bash
-hotpath console --metrics-port 6870
+hotpath console 
 ```
 
 The TUI will connect to your running application and display real-time profiling metrics with automatic refresh.
@@ -132,8 +127,6 @@ The TUI will connect to your running application and display real-time profiling
 ## Allocation Tracking
 
 In addition to time-based profiling, `hotpath` can track memory allocations. This feature uses a custom global allocator from [allocation-counter crate](https://github.com/fornwall/allocation-counter) to intercept all memory allocations and provides detailed statistics about memory usage per function.
-
-The `hotpath-alloc` feature tracks **both** bytes allocated and allocation count simultaneously, displaying them together (e.g., "5.2 KB | 42").
 
 By default, allocation tracking is **cumulative**, meaning that a function's allocation count includes all allocations made by functions it calls (nested calls). Notably, it produces invalid results for recursive functions. To track only **exclusive** allocations (direct allocations made by each function, excluding nested calls), set the `HOTPATH_ALLOC_SELF=true` environment variable when running your program.
 
@@ -171,6 +164,189 @@ async fn inner_main() {
 It ensures that tokio runs in a `current_thread` runtime mode if the allocation profiling feature is enabled.
 
 **Why this limitation exists**: The allocation tracking uses thread-local storage to track memory usage. In multi-threaded runtimes, async tasks can migrate between threads, making it impossible to accurately attribute allocations to specific function calls.
+
+## Channel and Stream Monitoring
+
+In addition to function profiling, `hotpath` can instrument async channels and streams to track message throughput, queue sizes, and data flow. This is particularly useful for debugging async applications and identifying bottlenecks in concurrent message-passing systems.
+
+### Channel Monitoring
+
+The `channel!` macro wraps channel creation to automatically track statistics:
+
+```rust
+use tokio::sync::mpsc;
+
+#[tokio::main]
+#[cfg_attr(feature = "hotpath", hotpath::main)]
+async fn main() {
+    // Create a channel normally
+    let (tx, rx) = mpsc::channel::<String>(100);
+
+    // Instrument it when profiling is enabled
+    #[cfg(feature = "hotpath")]
+    let (tx, rx) = hotpath::channel!((tx, rx));
+
+    // Use the channel exactly as before
+    tx.send("Hello".to_string()).await.unwrap();
+    let msg = rx.recv().await.unwrap();
+}
+```
+
+**Supported channel types:**
+- [`tokio::sync::mpsc::channel`](https://docs.rs/tokio/latest/tokio/sync/mpsc/fn.channel.html)
+- [`tokio::sync::mpsc::unbounded_channel`](https://docs.rs/tokio/latest/tokio/sync/mpsc/fn.unbounded_channel.html)
+- [`tokio::sync::oneshot::channel`](https://docs.rs/tokio/latest/tokio/sync/oneshot/fn.channel.html)
+- [`futures_channel::mpsc::channel`](https://docs.rs/futures-channel/latest/futures_channel/mpsc/fn.channel.html)
+- [`futures_channel::mpsc::unbounded`](https://docs.rs/futures-channel/latest/futures_channel/mpsc/fn.unbounded.html)
+- [`futures_channel::oneshot::channel`](https://docs.rs/futures-channel/latest/futures_channel/oneshot/fn.channel.html)
+- [`crossbeam_channel::bounded`](https://docs.rs/crossbeam/latest/crossbeam/channel/fn.bounded.html)
+- [`crossbeam_channel::unbounded`](https://docs.rs/crossbeam/latest/crossbeam/channel/fn.unbounded.html)
+
+**Optional features:**
+
+```rust
+// Custom label for easier identification in TUI
+let (tx, rx) = hotpath::channel!((tx, rx), label = "worker_queue");
+
+// Enable message logging (requires Debug trait on message type)
+let (tx, rx) = hotpath::channel!((tx, rx), log = true);
+```
+
+**Capacity parameter requirement:**
+
+⚠️ **Important:** For `futures::channel::mpsc` bounded channels, you **must** specify the `capacity` parameter because their API doesn't expose the capacity after creation:
+
+```rust
+use futures_channel::mpsc;
+
+// futures bounded channel - MUST specify capacity
+let (tx, rx) = mpsc::channel::<String>(10);
+#[cfg(feature = "hotpath")]
+let (tx, rx) = hotpath::channel!((tx, rx), capacity = 10);
+```
+
+Tokio and crossbeam channels don't require this parameter because their capacity is accessible from the channel handles.
+
+
+### Stream Monitoring
+
+The `stream!` macro instruments async streams to track items yielded:
+
+```rust
+use futures::stream::{self, StreamExt};
+
+#[tokio::main]
+#[cfg_attr(feature = "hotpath", hotpath::main)]
+async fn main() {
+    // Create a stream
+    let s = stream::iter(1..=100);
+
+    // Instrument it when profiling is enabled
+    #[cfg(feature = "hotpath")]
+    let s = hotpath::stream!(s);
+
+    // Use it normally
+    let items: Vec<_> = s.collect().await;
+}
+```
+
+**Optional features:**
+
+```rust
+// Custom label
+let s = hotpath::stream!(s, label = "data_stream");
+
+// Enable item logging (requires Debug trait on item type)
+let s = hotpath::stream!(s, log = true);
+```
+
+### Viewing Channel and Stream Metrics in TUI
+
+When using the live TUI dashboard, channel and stream statistics are displayed alongside function metrics. The TUI shows:
+
+- Real-time sent/received counts for channels
+- Queue sizes and queued bytes
+- Items yielded for streams
+- State changes (active → full → closed)
+- Recent message/item logs (when logging is enabled)
+
+See the [Live Performance Metrics TUI](#live-performance-metrics-tui) section for setup instructions.
+
+**Environment variable:**
+- `HOTPATH_LOGS_LIMIT` - Maximum number of log entries to keep per channel/stream (default: 50)
+
+### How Channel and Stream Monitoring Works
+
+The `channel!` macro wraps channels with lightweight proxies that transparently forward all messages while collecting real-time statistics. Each `send` and `recv` operation passes through a monitored proxy that emits updates to a background metrics collection thread.
+
+The `stream!` macro wraps streams and tracks items as they are yielded, collecting statistics about throughput and completion.
+
+**Zero-cost when disabled:** When the `hotpath` feature is disabled, the `#[cfg(feature = "hotpath")]` attribute ensures all instrumentation code is completely removed at compile time - there's absolutely zero runtime overhead.
+
+**Background processing:** The first invocation of `channel!` or `stream!` automatically starts:
+- A background thread for metrics collection
+- An HTTP server (when `HOTPATH_HTTP_PORT` is set) exposing metrics in JSON format for the TUI
+
+#### A note on accuracy
+
+`hotpath` instruments proxy channels that wrap your actual channel instances. It observes messages as they pass through these proxies rather than when they are finally consumed. As a result, the displayed metrics are an approximation of real channel activity - useful for debugging and diagnosing flow issues, but not a 100% accurate source of truth for production monitoring.
+
+Because of this proxy design, each bounded channel is effectively represented by three layers - the outer proxy, the original channel, and the inner proxy. In practice, this triples the total buffering capacity. For the same reason, it's currently not possible to measure the queue size of unbounded channels. Even with a slow consumer, the intermediate proxies will immediately absorb all incoming messages, masking true backlog behavior.
+
+That said, since the proxy layer introduces virtually no overhead compared to direct channel usage, timing and delay metrics should remain accurate. Logged messages contents and ordering is also 100% accurate.
+
+Current design intentionally sacrifices accuracy for the ease of integration - you can instrument channels with minimal code changes and still get meaningful visibility into their behavior.
+
+#### There be bugs 🐛
+
+This library has just been released. I've tested it with several apps, [big](https://x.com/_pawurb/status/1986570325341962339) and small, and it consistently produced reliable metrics. However, please note that enabling monitoring can subtly affect channel behavior in some cases. For example, using `try_send` may not return an error as expected, since the proxy layers effectively increase total capacity. I'm actively improving the library, so any feedback, issues, bug reports are appreciated.
+
+### ChannelsGuard - Printing Statistics on Drop
+
+In addition to the TUI, you can use `ChannelsGuard` to automatically print channel and stream statistics when your program ends (similar to function profiling output):
+
+```rust
+use tokio::sync::mpsc;
+
+#[tokio::main]
+async fn main() {
+    // Create guard at the start (prints stats when dropped)
+    #[cfg(feature = "hotpath")]
+    let _guard = hotpath::ChannelsGuard::new();
+
+    // Your code with instrumented channels...
+    let (tx, rx) = mpsc::channel::<i32>(10);
+    #[cfg(feature = "hotpath")]
+    let (tx, rx) = hotpath::channel!((tx, rx), label = "task-queue");
+
+    // ... use your channels ...
+
+    // Statistics will be printed when _guard is dropped (at program end)
+}
+```
+
+**Output example:**
+
+```
+=== Channel Statistics (runtime: 5.23s) ===
+
++------------------+-------------+--------+------+----------+--------+------------+
+| Channel          | Type        | State  | Sent | Received | Queued | Queued Mem |
++------------------+-------------+--------+------+----------+--------+------------+
+| task-queue       | bounded[10] | active | 1543 | 1543     | 0      | 0 B        |
+| http-responses   | unbounded   | active | 892  | 890      | 2      | 200 B      |
+| shutdown-signal  | oneshot     | closed | 1    | 1        | 0      | 0 B        |
++------------------+-------------+--------+------+----------+--------+------------+
+```
+
+**Customize output format:**
+
+```rust
+#[cfg(feature = "hotpath")]
+let _guard = hotpath::ChannelsGuardBuilder::new()
+    .format(hotpath::Format::Json)
+    .build();
+```
 
 ## How It Works
 
@@ -243,7 +419,29 @@ mod operations {
 
 Macro that measures the execution time of a code block with a static string label.
 
-### GuardBuilder API
+#### `hotpath::channel!(expr)`
+
+Macro that instruments channels to track message flow statistics. Wraps channel creation with monitoring code that tracks sent/received counts, queue size, and channel state.
+
+**Supported patterns:**
+- `hotpath::channel!((tx, rx))` - Basic instrumentation
+- `hotpath::channel!((tx, rx), label = "name")` - With custom label
+- `hotpath::channel!((tx, rx), log = true)` - With message logging (requires Debug trait)
+- `hotpath::channel!((tx, rx), label = "name", log = true)` - Both options combined
+
+**Supported channel types:** `tokio::sync::mpsc`, `tokio::sync::oneshot`, `futures_channel::mpsc`, `crossbeam_channel`
+
+#### `hotpath::stream!(expr)`
+
+Macro that instruments streams to track items yielded. Wraps stream creation with monitoring code that tracks yield count and stream state.
+
+**Supported patterns:**
+- `hotpath::stream!(s)` - Basic instrumentation
+- `hotpath::stream!(s, label = "name")` - With custom label
+- `hotpath::stream!(s, log = true)` - With item logging (requires Debug trait)
+- `hotpath::stream!(s, label = "name", log = true)` - Both options combined
+
+### GuardBuilder API (Function Profiling)
 
 `hotpath::GuardBuilder::new(caller_name)` - Create a new builder with the specified caller name
 
@@ -254,6 +452,42 @@ Macro that measures the execution time of a code block with a static string labe
 - `.reporter(Box<dyn Reporter>)` - Set custom reporter (overrides format)
 - `.build()` - Build and return the HotPath guard
 - `.build_with_timeout(Duration)` - Build guard that automatically drops after duration and exits the program (useful for profiling long-running programs like HTTP servers)
+
+### ChannelsGuard API (Channel Monitoring)
+
+`hotpath::ChannelsGuard::new()` - Create a guard that prints channel statistics when dropped
+
+`hotpath::ChannelsGuardBuilder::new()` - Create a builder for customizing channel statistics output
+
+**Configuration methods:**
+- `.format(Format)` - Set output format (Table, Json, JsonPretty)
+- `.build()` - Build and return the ChannelsGuard
+
+**Example:**
+```rust
+#[cfg(feature = "hotpath")]
+let _guard = hotpath::ChannelsGuardBuilder::new()
+    .format(hotpath::Format::JsonPretty)
+    .build();
+```
+
+### StreamsGuard API (Stream Monitoring)
+
+`hotpath::StreamsGuard::new()` - Create a guard that prints stream statistics when dropped
+
+`hotpath::StreamsGuardBuilder::new()` - Create a builder for customizing stream statistics output
+
+**Configuration methods:**
+- `.format(Format)` - Set output format (Table, Json, JsonPretty)
+- `.build()` - Build and return the StreamsGuard
+
+**Example:**
+```rust
+#[cfg(feature = "hotpath")]
+let _guard = hotpath::StreamsGuardBuilder::new()
+    .format(hotpath::Format::Table)
+    .build();
+```
 
 **Example:**
 ```rust
