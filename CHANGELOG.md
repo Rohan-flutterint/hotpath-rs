@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.1] - 2025-11-23
+
+### 🚀 Features
+
+- Show TID for function logs
+- Support both timing and alloc metrics in TUI
+
+### 🐛 Bug Fixes
+
+- Always initialize START_TIME
+- Exclude profiling overhead from alloc metrics
+- Fix fetching correct function logs and index logic
+
+### 🚜 Refactor
+
+- Improve TUI UI
+- Reuse TUI styles
+
+### ⚙️ Miscellaneous Tasks
+
+- Improve http endpoints tests
+- Release 0.7.1
+
 ## [0.7.0] - 2025-11-22
 
 ### 🚀 Features
