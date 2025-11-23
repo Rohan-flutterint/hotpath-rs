@@ -78,6 +78,8 @@ pub(crate) fn render_function_logs_panel(
             ),
         ]);
 
+        let total_invocations = function_logs_data.count;
+
         let rows: Vec<Row> = function_logs_data
             .logs
             .iter()
@@ -92,9 +94,11 @@ pub(crate) fn render_function_logs_panel(
 
                 let mem_str = hotpath::format_bytes(value);
                 let obj_str = count.map_or("0".to_string(), |c| c.to_string());
+                // Logs are reversed (newest first), so highest invocation number is at index 0
+                let invocation_number = total_invocations - idx;
 
                 Row::new(vec![
-                    Cell::from(format!("{}", idx + 1)),
+                    Cell::from(format!("{}", invocation_number)),
                     Cell::from(mem_str),
                     Cell::from(obj_str),
                     Cell::from(time_ago_str),

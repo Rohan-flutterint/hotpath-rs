@@ -22,8 +22,13 @@ pub enum QueryRequest {
     GetFunctions(Sender<Option<FunctionsJson>>),
     /// Request timing metrics snapshot
     GetFunctionsTiming(Sender<FunctionsJson>),
-    /// Request function logs for a specific function (returns None if function not found)
-    GetFunctionLogs {
+    /// Request timing function logs for a specific function (returns None if function not found)
+    GetFunctionLogsTiming {
+        function_name: String,
+        response_tx: Sender<Option<FunctionLogsJson>>,
+    },
+    /// Request allocation function logs for a specific function (returns None if hotpath-alloc not enabled or function not found)
+    GetFunctionLogsAlloc {
         function_name: String,
         response_tx: Sender<Option<FunctionLogsJson>>,
     },
@@ -620,14 +625,14 @@ impl HotPath {
                                             }
                                         }
                                     }
-                                    QueryRequest::GetFunctionLogs { function_name, response_tx } => {
+                                    QueryRequest::GetFunctionLogsTiming { function_name, response_tx } => {
                                         let response = if let Some(stats) = local_stats.get(function_name.as_str()) {
                                             cfg_if::cfg_if! {
                                                 if #[cfg(feature = "hotpath-alloc")] {
                                                     let logs: Vec<(u64, u64, Option<u64>, u64)> = stats.recent_logs
                                                         .iter()
                                                         .rev()
-                                                        .map(|(bytes, count, _duration_ns, elapsed, tid)| (*bytes, elapsed.as_nanos() as u64, Some(*count), *tid))
+                                                        .map(|(_bytes, _count, duration_ns, elapsed, tid)| (*duration_ns, elapsed.as_nanos() as u64, None, *tid))
                                                         .collect();
                                                 } else {
                                                     let logs: Vec<(u64, u64, Option<u64>, u64)> = stats.recent_logs
@@ -638,14 +643,40 @@ impl HotPath {
                                                 }
                                             }
                                             Some(FunctionLogsJson {
-                                                function_name,
+                                                function_name: function_name.clone(),
                                                 logs,
-                                                count: stats.recent_logs.len(),
+                                                count: stats.count as usize,
                                             })
                                         } else {
+                                            // Function not found
                                             None
                                         };
                                         let _ = response_tx.send(response);
+                                    }
+                                    QueryRequest::GetFunctionLogsAlloc { function_name, response_tx } => {
+                                        cfg_if::cfg_if! {
+                                            if #[cfg(feature = "hotpath-alloc")] {
+                                                let response = if let Some(stats) = local_stats.get(function_name.as_str()) {
+                                                    let logs: Vec<(u64, u64, Option<u64>, u64)> = stats.recent_logs
+                                                        .iter()
+                                                        .rev()
+                                                        .map(|(bytes, count, _duration_ns, elapsed, tid)| (*bytes, elapsed.as_nanos() as u64, Some(*count), *tid))
+                                                        .collect();
+                                                    Some(FunctionLogsJson {
+                                                        function_name,
+                                                        logs,
+                                                        count: stats.count as usize, // Total invocations, not just recent logs
+                                                    })
+                                                } else {
+                                                    None
+                                                };
+                                                let _ = response_tx.send(response);
+                                            } else {
+                                                // Return None if hotpath-alloc feature is not enabled
+                                                let _ = function_name; // Suppress unused variable warning
+                                                let _ = response_tx.send(None);
+                                            }
+                                        }
                                     }
                                 }
                             }

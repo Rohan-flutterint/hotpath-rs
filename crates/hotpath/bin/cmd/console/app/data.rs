@@ -253,9 +253,39 @@ impl App {
     pub(crate) fn fetch_function_logs_if_open(&mut self, port: u16) {
         if self.show_function_logs {
             if let Some(function_name) = self.logs_function_name() {
-                match super::super::http::fetch_function_logs(&self.agent, port, function_name) {
-                    Ok(function_logs) => self.update_function_logs(function_logs),
-                    Err(_) => self.clear_function_logs(),
+                match self.selected_tab {
+                    SelectedTab::Timing => {
+                        match super::super::http::fetch_function_logs_timing(
+                            &self.agent,
+                            port,
+                            function_name,
+                        ) {
+                            Ok(Some(function_logs)) => self.update_function_logs(function_logs),
+                            Ok(None) => {
+                                // Function not found, clear logs
+                                self.clear_function_logs();
+                            }
+                            Err(_) => self.clear_function_logs(),
+                        }
+                    }
+                    SelectedTab::Memory => {
+                        match super::super::http::fetch_function_logs_alloc(
+                            &self.agent,
+                            port,
+                            function_name,
+                        ) {
+                            Ok(Some(function_logs)) => self.update_function_logs(function_logs),
+                            Ok(None) => {
+                                // Feature not enabled, clear logs
+                                self.clear_function_logs();
+                            }
+                            Err(_) => self.clear_function_logs(),
+                        }
+                    }
+                    _ => {
+                        // Other tabs don't support function logs
+                        self.clear_function_logs();
+                    }
                 }
             }
         }

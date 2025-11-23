@@ -16,8 +16,10 @@ static RE_CHANNEL_LOGS: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^/channels/(\d+)/logs$").unwrap());
 static RE_STREAM_LOGS: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^/streams/(\d+)/logs$").unwrap());
-static RE_FUNCTION_LOGS: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^/functions/([^/]+)/logs$").unwrap());
+static RE_FUNCTION_LOGS_TIMING: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^/functions_timing/([^/]+)/logs$").unwrap());
+static RE_FUNCTION_LOGS_ALLOC: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^/functions_alloc/([^/]+)/logs$").unwrap());
 
 /// Tracks whether the HTTP server has been started to prevent duplicate instances
 static HTTP_SERVER_STARTED: OnceLock<()> = OnceLock::new();
@@ -79,9 +81,15 @@ fn handle_request(request: Request) {
             respond_json(request, &streams);
         }
         _ => {
-            // Handle /functions/<encoded_key>/logs
-            if let Some(caps) = RE_FUNCTION_LOGS.captures(&path) {
-                handle_function_logs_request(request, &caps[1]);
+            // Handle /functions_timing/<encoded_key>/logs
+            if let Some(caps) = RE_FUNCTION_LOGS_TIMING.captures(&path) {
+                handle_function_logs_timing_request(request, &caps[1]);
+                return;
+            }
+
+            // Handle /functions_alloc/<encoded_key>/logs
+            if let Some(caps) = RE_FUNCTION_LOGS_ALLOC.captures(&path) {
+                handle_function_logs_alloc_request(request, &caps[1]);
                 return;
             }
 
@@ -133,7 +141,7 @@ fn respond_internal_error(request: Request, e: impl Display) {
     );
 }
 
-fn handle_function_logs_request(request: Request, encoded_key: &str) {
+fn handle_function_logs_timing_request(request: Request, encoded_key: &str) {
     let function_name = match base64_decode(encoded_key) {
         Ok(name) => name,
         Err(e) => {
@@ -142,8 +150,8 @@ fn handle_function_logs_request(request: Request, encoded_key: &str) {
         }
     };
 
-    // Get logs from worker thread
-    match get_function_logs(&function_name) {
+    // Get timing logs from worker thread
+    match get_function_logs_timing(&function_name) {
         Some(function_logs_json) => {
             respond_json(request, &function_logs_json);
         }
@@ -151,10 +159,31 @@ fn handle_function_logs_request(request: Request, encoded_key: &str) {
             respond_error(
                 request,
                 404,
-                &format!(
-                    "Function '{}' not found or no logs available",
-                    function_name
-                ),
+                &format!("Function '{}' not found", function_name),
+            );
+        }
+    }
+}
+
+fn handle_function_logs_alloc_request(request: Request, encoded_key: &str) {
+    let function_name = match base64_decode(encoded_key) {
+        Ok(name) => name,
+        Err(e) => {
+            respond_error(request, 400, &format!("Invalid base64 encoding: {}", e));
+            return;
+        }
+    };
+
+    // Get allocation logs from worker thread
+    match get_function_logs_alloc(&function_name) {
+        Some(function_logs_json) => {
+            respond_json(request, &function_logs_json);
+        }
+        None => {
+            respond_error(
+                request,
+                404,
+                "Memory profiling not available - enable hotpath-alloc feature",
             );
         }
     }
@@ -168,7 +197,7 @@ fn base64_decode(encoded: &str) -> Result<String, String> {
     String::from_utf8(bytes).map_err(|e| e.to_string())
 }
 
-fn get_function_logs(function_name: &str) -> Option<FunctionLogsJson> {
+fn get_function_logs_timing(function_name: &str) -> Option<FunctionLogsJson> {
     let arc_swap = HOTPATH_STATE.get()?;
     let state_option = arc_swap.load();
     let state_arc = (*state_option).as_ref()?.clone();
@@ -179,7 +208,35 @@ fn get_function_logs(function_name: &str) -> Option<FunctionLogsJson> {
 
     if let Some(query_tx) = &state_guard.query_tx {
         query_tx
-            .send(QueryRequest::GetFunctionLogs {
+            .send(QueryRequest::GetFunctionLogsTiming {
+                function_name: function_name.to_string(),
+                response_tx,
+            })
+            .ok()?;
+        drop(state_guard);
+
+        // Receive the response - it will be Some(FunctionLogsJson) or None
+        response_rx
+            .recv_timeout(Duration::from_millis(250))
+            .ok()
+            .flatten()
+    } else {
+        None
+    }
+}
+
+fn get_function_logs_alloc(function_name: &str) -> Option<FunctionLogsJson> {
+    let arc_swap = HOTPATH_STATE.get()?;
+    let state_option = arc_swap.load();
+    let state_arc = (*state_option).as_ref()?.clone();
+
+    let state_guard = state_arc.read().ok()?;
+
+    let (response_tx, response_rx) = bounded::<Option<FunctionLogsJson>>(1);
+
+    if let Some(query_tx) = &state_guard.query_tx {
+        query_tx
+            .send(QueryRequest::GetFunctionLogsAlloc {
                 function_name: function_name.to_string(),
                 response_tx,
             })

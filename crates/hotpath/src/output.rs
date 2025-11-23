@@ -193,6 +193,7 @@ impl fmt::Display for ProfilingMode {
 pub struct FunctionLogsJson {
     pub function_name: String,
     pub logs: Vec<(u64, u64, Option<u64>, u64)>,
+    /// Total number of times this function was invoked (used to calculate invocation numbers)
     pub count: usize,
 }
 

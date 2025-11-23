@@ -73,6 +73,8 @@ pub(crate) fn render_function_logs_panel(
             ),
         ]);
 
+        let total_invocations = function_logs_data.count;
+
         let rows: Vec<Row> = function_logs_data
             .logs
             .iter()
@@ -86,9 +88,10 @@ pub(crate) fn render_function_logs_panel(
                 };
 
                 let time_str = hotpath::format_duration(value);
+                let invocation_number = total_invocations - idx;
 
                 Row::new(vec![
-                    Cell::from(format!("{}", idx + 1)),
+                    Cell::from(format!("{}", invocation_number)),
                     Cell::from(time_str),
                     Cell::from(time_ago_str),
                     Cell::from(tid.to_string()),
