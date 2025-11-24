@@ -1,5 +1,7 @@
 mod app;
 mod constants;
+#[cfg(feature = "hotpath")]
+pub mod demo;
 mod http;
 mod views;
 mod widgets;
@@ -24,6 +26,9 @@ pub struct ConsoleArgs {
 #[cfg_attr(feature = "hotpath", hotpath::measure_all)]
 impl ConsoleArgs {
     pub fn run(&self) -> Result<()> {
+        #[cfg(feature = "hotpath")]
+        demo::init();
+
         let mut app = App::new(self.metrics_port);
 
         // Use modern ratatui initialization

@@ -31,6 +31,30 @@ In [this post](https://pawelurbanek.com/rust-optimize-performance), I explain th
 - [ ] interactive SSH demo 
 - [ ] MCP/LLM interface
 
+## Quick Demo
+
+The fastest way to try the TUI is to run it in **auto-instrumentation mode** - the TUI process profiles itself and displays its own performance metrics in a real time.
+
+First, install `hotpath` CLI with auto-instrumentation enabled:
+
+```bash
+cargo install hotpath --features='tui,hotpath,hotpath-alloc'
+```
+
+Then launch the console:
+
+```bash
+hotpath console
+```
+
+and you'll see timing, memory and channel usage metrics.
+
+Make sure to reinstall it without the auto-profiling features so that you can also observe metrics of other programs!
+
+```bash
+cargo install hotpath --features='tui'
+```
+
 ## Quick Start
 
 > **⚠️ Note**  
