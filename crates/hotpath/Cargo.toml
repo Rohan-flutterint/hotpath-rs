@@ -43,6 +43,7 @@ tokio = { version = "1.47", features = ["rt"], optional = true }
 ureq = { version = "3.1", features = ["json"] }
 futures-channel = { version = "0.3", features = ["sink"], optional = true }
 futures-util = { version = "0.3", features = ["sink"] }
+pin-project-lite = "0.2"
 regex = "1"
 chrono = { version = "0.4", optional = true }
 libc = "0.2"
