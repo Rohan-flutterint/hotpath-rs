@@ -11,6 +11,10 @@ pub mod channels;
 // Streams module for instrumenting streams
 pub mod streams;
 
+// Threads module for monitoring OS thread metrics
+#[cfg(feature = "threads")]
+pub mod threads;
+
 pub use channels::{Instrument, InstrumentLog};
 pub use streams::{InstrumentStream, InstrumentStreamLog};
 
@@ -549,7 +553,7 @@ impl HotPath {
         let worker_recent_logs_limit = recent_logs_limit;
 
         thread::Builder::new()
-            .name("hotpath-worker".into())
+            .name("hp-worker".into())
             .spawn(move || {
                 let mut local_stats = HashMap::<&'static str, FunctionStats>::new();
 
