@@ -517,9 +517,12 @@ impl HotPath {
         // Disable allocation tracking during infrastructure initialization
         // to prevent profiling overhead from being included in measurements
         #[cfg(feature = "hotpath-alloc")]
-        alloc::core::ALLOCATIONS.with(|stack| {
-            stack.tracking_enabled.set(false);
-        });
+        {
+            alloc::core::ALLOCATIONS.with(|stack| {
+                stack.tracking_enabled.set(false);
+            });
+            alloc::core::init_thread_alloc_tracking();
+        }
 
         let percentiles = percentiles.to_vec();
 
@@ -699,11 +702,14 @@ impl HotPath {
         crate::channels::START_TIME.get_or_init(std::time::Instant::now);
 
         // Start HTTP metrics server (default port 6770, customizable via HOTPATH_HTTP_PORT)
-        let port = std::env::var("HOTPATH_HTTP_PORT")
-            .ok()
-            .and_then(|p| p.parse::<u16>().ok())
-            .unwrap_or(6770);
-        crate::http_server::start_metrics_server_once(port);
+        #[cfg(feature = "hotpath")]
+        {
+            let port = std::env::var("HOTPATH_HTTP_PORT")
+                .ok()
+                .and_then(|p| p.parse::<u16>().ok())
+                .unwrap_or(6770);
+            crate::http_server::start_metrics_server_once(port);
+        }
 
         // Override reporter with JsonReporter when HOTPATH_JSON env var is enabled
         let reporter: Box<dyn Reporter> = if std::env::var("HOTPATH_JSON")

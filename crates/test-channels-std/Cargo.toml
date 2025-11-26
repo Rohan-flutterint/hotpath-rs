@@ -8,4 +8,4 @@ edition = "2021"
 hotpath = { workspace = true, optional = true }
 
 [features]
-hotpath = ["dep:hotpath"]
+hotpath = ["dep:hotpath", "hotpath/hotpath"]

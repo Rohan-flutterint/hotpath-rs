@@ -243,6 +243,7 @@ impl App {
                 sample_interval_ms: 1000,
                 threads: vec![],
                 thread_count: 0,
+                rss_bytes: None,
             },
             threads_table_state: TableState::default().with_selected(0),
         }

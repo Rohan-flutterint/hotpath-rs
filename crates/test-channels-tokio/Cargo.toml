@@ -14,5 +14,5 @@ futures-util = "0.3"
 rand = "0.9.2"
 
 [features]
-hotpath = ["dep:hotpath"]
+hotpath = ["dep:hotpath", "hotpath/hotpath"]
 tokio-console = ["tokio/full", "tokio/tracing", "dep:console-subscriber"]

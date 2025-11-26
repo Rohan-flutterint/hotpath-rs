@@ -15,4 +15,4 @@ ureq = "2.10"
 serde_json = "1.0"
 
 [features]
-hotpath = ["dep:hotpath"]
+hotpath = ["dep:hotpath", "hotpath/hotpath"]

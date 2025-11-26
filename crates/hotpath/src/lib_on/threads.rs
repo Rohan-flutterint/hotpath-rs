@@ -30,6 +30,15 @@ pub struct ThreadMetrics {
     /// CPU usage percentage (based on delta from previous sample)
     /// None if this is the first sample
     pub cpu_percent: Option<f64>,
+    /// Total bytes allocated by this thread (only with hotpath-alloc)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub alloc_bytes: Option<u64>,
+    /// Total bytes deallocated by this thread (only with hotpath-alloc)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dealloc_bytes: Option<u64>,
+    /// Current memory held (alloc - dealloc)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mem_diff: Option<i64>,
 }
 
 impl ThreadMetrics {
@@ -41,6 +50,9 @@ impl ThreadMetrics {
             cpu_sys,
             cpu_total: cpu_user + cpu_sys,
             cpu_percent: None,
+            alloc_bytes: None,
+            dealloc_bytes: None,
+            mem_diff: None,
         }
     }
 
@@ -68,6 +80,9 @@ pub struct ThreadsJson {
     pub threads: Vec<ThreadMetrics>,
     /// Total number of threads
     pub thread_count: usize,
+    /// Process RSS (Resident Set Size) in bytes
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rss_bytes: Option<u64>,
 }
 
 /// Internal state for thread monitoring
@@ -139,7 +154,19 @@ fn collector_loop(state: ThreadsStateRef, interval: Duration) {
                 let mut new_metrics = Vec::with_capacity(raw_metrics.len());
                 for metric in raw_metrics {
                     let prev = state_guard.previous_metrics.get(&metric.os_tid);
-                    let m_with_percent = metric.clone().with_percentage(prev, elapsed_secs);
+                    #[allow(unused_mut)]
+                    let mut m_with_percent = metric.clone().with_percentage(prev, elapsed_secs);
+
+                    // Merge per-thread allocation stats
+                    #[cfg(feature = "hotpath-alloc")]
+                    if let Some((alloc, dealloc)) =
+                        super::alloc::core::get_thread_alloc_stats(m_with_percent.os_tid)
+                    {
+                        m_with_percent.alloc_bytes = Some(alloc);
+                        m_with_percent.dealloc_bytes = Some(dealloc);
+                        m_with_percent.mem_diff = Some(alloc as i64 - dealloc as i64);
+                    }
+
                     new_metrics.push(m_with_percent);
                 }
 
@@ -165,8 +192,21 @@ fn collector_loop(_state: ThreadsStateRef, _interval: Duration) {
     }
 }
 
+/// Get RSS from collector (platform-specific)
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn get_rss_bytes() -> Option<u64> {
+    collector::get_rss_bytes()
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+fn get_rss_bytes() -> Option<u64> {
+    None
+}
+
 /// Get current thread metrics as JSON
 pub fn get_threads_json() -> ThreadsJson {
+    let rss_bytes = get_rss_bytes();
+
     if let Some(state) = THREADS_STATE.get() {
         if let Ok(state_guard) = state.read() {
             let current_elapsed_ns = state_guard.start_time.elapsed().as_nanos() as u64;
@@ -176,6 +216,7 @@ pub fn get_threads_json() -> ThreadsJson {
                 sample_interval_ms: state_guard.sample_interval.as_millis() as u64,
                 threads: state_guard.current_metrics.clone(),
                 thread_count: state_guard.current_metrics.len(),
+                rss_bytes,
             };
         }
     }
@@ -185,5 +226,6 @@ pub fn get_threads_json() -> ThreadsJson {
         sample_interval_ms: DEFAULT_SAMPLE_INTERVAL_MS,
         threads: Vec::new(),
         thread_count: 0,
+        rss_bytes,
     }
 }

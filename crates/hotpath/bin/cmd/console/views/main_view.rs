@@ -402,6 +402,7 @@ fn render_threads_view(frame: &mut Frame, app: &mut App, area: Rect) {
         &mut app.threads_table_state,
         thread_position,
         total_threads,
+        app.threads.rss_bytes,
     );
 }
 

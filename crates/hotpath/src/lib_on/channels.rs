@@ -417,11 +417,14 @@ pub(crate) fn init_channels_state() -> &'static ChannelStatsState {
             .expect("Failed to spawn channel-stats-collector thread");
 
         // Start HTTP metrics server (default port 6770, customizable via HOTPATH_HTTP_PORT)
-        let port = std::env::var("HOTPATH_HTTP_PORT")
-            .ok()
-            .and_then(|p| p.parse::<u16>().ok())
-            .unwrap_or(6770);
-        crate::http_server::start_metrics_server_once(port);
+        #[cfg(feature = "hotpath")]
+        {
+            let port = std::env::var("HOTPATH_HTTP_PORT")
+                .ok()
+                .and_then(|p| p.parse::<u16>().ok())
+                .unwrap_or(6770);
+            crate::http_server::start_metrics_server_once(port);
+        }
 
         (tx, stats_map)
     })

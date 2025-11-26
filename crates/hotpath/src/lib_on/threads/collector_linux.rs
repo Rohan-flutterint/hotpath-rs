@@ -36,11 +36,8 @@ pub(crate) fn collect_thread_metrics() -> Result<Vec<ThreadMetrics>, String> {
         if let Ok(tid) = tid_str.parse::<u64>() {
             match get_thread_info(tid, ticks_per_sec) {
                 Ok(metric) => metrics.push(metric),
-                Err(e) => {
-                    eprintln!(
-                        "[hotpath] Warning: Failed to get info for thread {}: {}",
-                        tid, e
-                    );
+                Err(_) => {
+                    // Thread may have exited between listing and querying - this is normal
                 }
             }
         }
@@ -89,6 +86,20 @@ fn get_thread_info(tid: u64, ticks_per_sec: f64) -> Result<ThreadMetrics, String
     let cpu_sys = stime_ticks as f64 / ticks_per_sec;
 
     Ok(ThreadMetrics::new(tid, name, cpu_user, cpu_sys))
+}
+
+/// Get the RSS (Resident Set Size) of the current process in bytes
+pub(crate) fn get_rss_bytes() -> Option<u64> {
+    // Read from /proc/self/statm - second field is RSS in pages
+    let statm = fs::read_to_string("/proc/self/statm").ok()?;
+    let fields: Vec<&str> = statm.split_whitespace().collect();
+    if fields.len() >= 2 {
+        let rss_pages: u64 = fields[1].parse().ok()?;
+        let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) } as u64;
+        Some(rss_pages * page_size)
+    } else {
+        None
+    }
 }
 
 #[cfg(all(test, target_os = "linux"))]

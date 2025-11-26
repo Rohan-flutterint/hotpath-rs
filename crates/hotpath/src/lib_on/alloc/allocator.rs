@@ -21,6 +21,8 @@ unsafe impl GlobalAlloc for CountingAllocator {
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        super::core::track_dealloc(layout.size());
+
         unsafe {
             System.dealloc(ptr, layout);
         }

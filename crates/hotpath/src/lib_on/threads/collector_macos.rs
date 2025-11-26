@@ -82,11 +82,8 @@ pub(crate) fn collect_thread_metrics() -> Result<Vec<ThreadMetrics>, String> {
 
             match get_thread_info(thread, i as u64) {
                 Ok(metric) => metrics.push(metric),
-                Err(e) => {
-                    eprintln!(
-                        "[hotpath] Warning: Failed to get info for thread {}: {}",
-                        i, e
-                    );
+                Err(_) => {
+                    // Thread may have exited between listing and querying - this is normal
                 }
             }
         }
@@ -153,6 +150,20 @@ unsafe fn get_thread_name(thread: thread_act_t) -> Option<String> {
     }
 
     None
+}
+
+/// Get the RSS (Resident Set Size) of the current process in bytes
+pub(crate) fn get_rss_bytes() -> Option<u64> {
+    // Use rusage to get RSS - this is the most reliable cross-platform approach
+    unsafe {
+        let mut rusage: libc::rusage = std::mem::zeroed();
+        if libc::getrusage(libc::RUSAGE_SELF, &mut rusage) == 0 {
+            // On macOS, ru_maxrss is in bytes
+            Some(rusage.ru_maxrss as u64)
+        } else {
+            None
+        }
+    }
 }
 
 #[cfg(all(test, target_os = "macos"))]

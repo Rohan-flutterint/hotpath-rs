@@ -1,6 +1,92 @@
 use std::cell::Cell;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+use crate::tid::current_tid;
 
 pub const MAX_DEPTH: usize = 64;
+
+/// Maximum number of threads we can track (fixed size to avoid allocations in allocator)
+const MAX_THREADS: usize = 256;
+
+/// Per-thread allocation statistics (lock-free)
+pub struct ThreadAllocStats {
+    /// Thread ID (0 means slot is unused)
+    pub tid: AtomicU64,
+    pub alloc_bytes: AtomicU64,
+    pub dealloc_bytes: AtomicU64,
+}
+
+impl ThreadAllocStats {
+    pub const fn new() -> Self {
+        Self {
+            tid: AtomicU64::new(0),
+            alloc_bytes: AtomicU64::new(0),
+            dealloc_bytes: AtomicU64::new(0),
+        }
+    }
+}
+
+#[allow(clippy::declare_interior_mutable_const)]
+static THREAD_ALLOC_STATS: [ThreadAllocStats; MAX_THREADS] = {
+    const INIT: ThreadAllocStats = ThreadAllocStats::new();
+    [INIT; MAX_THREADS]
+};
+
+static THREAD_TRACKING_ENABLED: AtomicU64 = AtomicU64::new(0);
+
+/// Initialize the thread allocation tracking system
+pub fn init_thread_alloc_tracking() {
+    THREAD_TRACKING_ENABLED.store(1, Ordering::Release);
+}
+
+/// Get allocation stats for a thread
+pub fn get_thread_alloc_stats(os_tid: u64) -> Option<(u64, u64)> {
+    if THREAD_TRACKING_ENABLED.load(Ordering::Acquire) == 0 {
+        return None;
+    }
+
+    for slot in &THREAD_ALLOC_STATS {
+        let slot_tid = slot.tid.load(Ordering::Acquire);
+        if slot_tid == os_tid {
+            return Some((
+                slot.alloc_bytes.load(Ordering::Relaxed),
+                slot.dealloc_bytes.load(Ordering::Relaxed),
+            ));
+        }
+        if slot_tid == 0 {
+            // Empty slot, no more threads registered after this point
+            break;
+        }
+    }
+    None
+}
+
+/// Find or create a slot for the given thread ID (lock-free)
+#[inline]
+fn get_or_create_slot(tid: u64) -> Option<&'static ThreadAllocStats> {
+    for slot in &THREAD_ALLOC_STATS {
+        let slot_tid = slot.tid.load(Ordering::Acquire);
+
+        if slot_tid == tid {
+            // Found existing slot
+            return Some(slot);
+        }
+
+        if slot_tid == 0 {
+            // Empty slot - try to claim it with CAS
+            match slot
+                .tid
+                .compare_exchange(0, tid, Ordering::AcqRel, Ordering::Acquire)
+            {
+                Ok(_) => return Some(slot), // Successfully claimed
+                Err(current) if current == tid => return Some(slot), // Race: same tid won
+                Err(_) => continue,         // Slot was taken by another thread, try next
+            }
+        }
+    }
+    // All slots full
+    None
+}
 
 /// Allocation info tracking both total bytes and count
 pub struct AllocationInfo {
@@ -54,4 +140,23 @@ pub fn track_alloc(size: usize) {
         info.bytes_total.set(info.bytes_total.get() + size as u64);
         info.count_total.set(info.count_total.get() + 1);
     });
+
+    // Track per-thread allocation (lock-free)
+    if THREAD_TRACKING_ENABLED.load(Ordering::Relaxed) != 0 {
+        let tid = current_tid();
+        if let Some(slot) = get_or_create_slot(tid) {
+            slot.alloc_bytes.fetch_add(size as u64, Ordering::Relaxed);
+        }
+    }
+}
+
+/// Called by the shared global allocator to track deallocations
+#[inline]
+pub fn track_dealloc(size: usize) {
+    if THREAD_TRACKING_ENABLED.load(Ordering::Relaxed) != 0 {
+        let tid = current_tid();
+        if let Some(slot) = get_or_create_slot(tid) {
+            slot.dealloc_bytes.fetch_add(size as u64, Ordering::Relaxed);
+        }
+    }
 }

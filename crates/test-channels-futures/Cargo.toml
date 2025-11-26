@@ -12,4 +12,4 @@ smol = "2.0"
 async-io = "2.0"
 
 [features]
-hotpath = ["dep:hotpath"]
+hotpath = ["dep:hotpath", "hotpath/hotpath"]
