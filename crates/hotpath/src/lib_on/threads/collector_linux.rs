@@ -7,6 +7,26 @@ use std::sync::OnceLock;
 
 static CLOCK_TICKS: OnceLock<u64> = OnceLock::new();
 
+/// Convert Linux thread state character to unified status name and native code
+fn state_to_status(state: &str) -> (String, String) {
+    let code = state.to_string();
+    let name = match state {
+        "R" => "Running ",
+        "S" => "Sleeping",
+        "D" => "Blocked", // Disk sleep / uninterruptible
+        "Z" => "Zombie",
+        "T" => "Stopped",
+        "t" => "Stopped", // Tracing stop
+        "X" | "x" => "Dead",
+        "K" => "Wakekill",
+        "W" => "Waking",
+        "P" => "Parked",
+        "I" => "Idle",
+        _ => "Unknown",
+    };
+    (name.to_string(), code)
+}
+
 /// Get clock ticks per second for time conversion
 fn clock_ticks_per_sec() -> u64 {
     *CLOCK_TICKS.get_or_init(|| {
@@ -75,6 +95,9 @@ fn get_thread_info(tid: u64, ticks_per_sec: f64) -> Result<ThreadMetrics, String
         return Err(format!("stat file has too few fields: {}", fields.len()));
     }
 
+    // Extract thread state (first field after comm)
+    let (status, status_code) = state_to_status(fields[0]);
+
     let utime_ticks: u64 = fields[11]
         .parse()
         .map_err(|_| "Failed to parse utime".to_string())?;
@@ -85,7 +108,14 @@ fn get_thread_info(tid: u64, ticks_per_sec: f64) -> Result<ThreadMetrics, String
     let cpu_user = utime_ticks as f64 / ticks_per_sec;
     let cpu_sys = stime_ticks as f64 / ticks_per_sec;
 
-    Ok(ThreadMetrics::new(tid, name, cpu_user, cpu_sys))
+    Ok(ThreadMetrics::new(
+        tid,
+        name,
+        status,
+        status_code,
+        cpu_user,
+        cpu_sys,
+    ))
 }
 
 /// Get the RSS (Resident Set Size) of the current process in bytes

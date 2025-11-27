@@ -1,5 +1,6 @@
 use futures_util::stream::{self, StreamExt};
 use rand::Rng;
+use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tokio::time::sleep;
@@ -144,10 +145,222 @@ fn process_data(arrays: Vec<Vec<u64>>) -> u64 {
     total_sum
 }
 
+// ============================================================================
+// Thread State Simulation Functions
+// These functions demonstrate various thread states visible in the TUI
+// ============================================================================
+
+/// Thread that waits on a mutex - shows "Sleeping" state while waiting for lock
+fn mutex_contention_worker(mutex: Arc<Mutex<u64>>, id: u32) {
+    std::thread::Builder::new()
+        .name(format!("mutex-worker-{}", id))
+        .spawn(move || {
+            for _ in 0..100 {
+                // Acquire lock and hold it briefly
+                let mut guard = mutex.lock().unwrap();
+                *guard = guard.wrapping_add(1);
+                // Do some work while holding the lock
+                std::thread::sleep(Duration::from_millis(50));
+                drop(guard);
+                // Small gap before next acquisition
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        })
+        .expect("Failed to spawn mutex worker thread");
+}
+
+/// Thread that parks itself - shows "Sleeping" (S on Linux, 3 on macOS) state
+fn parked_thread_worker(unpark_signal: Arc<(Mutex<bool>, Condvar)>) {
+    std::thread::Builder::new()
+        .name("parked-thread".into())
+        .spawn(move || {
+            loop {
+                // Park the thread - it will show as "Sleeping" state
+                std::thread::park();
+
+                // Check if we should exit
+                let (lock, _) = &*unpark_signal;
+                if *lock.lock().unwrap() {
+                    break;
+                }
+
+                // Do a tiny bit of work then park again
+                std::hint::black_box(42u64);
+            }
+        })
+        .expect("Failed to spawn parked thread");
+}
+
+/// Thread waiting on a condvar - shows "Sleeping" state
+fn condvar_waiter_worker(condvar_pair: Arc<(Mutex<bool>, Condvar)>, id: u32) {
+    std::thread::Builder::new()
+        .name(format!("condvar-wait-{}", id))
+        .spawn(move || {
+            let (lock, cvar) = &*condvar_pair;
+            for _ in 0..50 {
+                // Wait on condvar - thread will be in "Sleeping" state
+                let mut ready = lock.lock().unwrap();
+                while !*ready {
+                    ready = cvar.wait(ready).unwrap();
+                }
+                *ready = false;
+
+                // Do some work
+                std::hint::black_box(123u64);
+                std::thread::sleep(Duration::from_millis(20));
+            }
+        })
+        .expect("Failed to spawn condvar waiter thread");
+}
+
+/// Thread that signals condvar waiters periodically
+fn condvar_signaler_worker(condvar_pair: Arc<(Mutex<bool>, Condvar)>) {
+    std::thread::Builder::new()
+        .name("condvar-signal".into())
+        .spawn(move || {
+            for _ in 0..200 {
+                std::thread::sleep(Duration::from_millis(100));
+                let (lock, cvar) = &*condvar_pair;
+                let mut ready = lock.lock().unwrap();
+                *ready = true;
+                cvar.notify_all();
+                drop(ready);
+            }
+        })
+        .expect("Failed to spawn condvar signaler thread");
+}
+
+/// Thread doing CPU-intensive work - shows "Running" state (R on Linux, 1 on macOS)
+fn cpu_intensive_worker(stop_flag: Arc<Mutex<bool>>) {
+    std::thread::Builder::new()
+        .name("cpu-intensive".into())
+        .spawn(move || {
+            let mut counter = 0u64;
+            loop {
+                // Check stop flag periodically
+                if counter % 1_000_000 == 0 {
+                    if *stop_flag.lock().unwrap() {
+                        break;
+                    }
+                }
+                // CPU-intensive work - should show as "Running"
+                counter = counter.wrapping_add(1);
+                std::hint::black_box(counter);
+            }
+        })
+        .expect("Failed to spawn CPU intensive thread");
+}
+
+/// Thread doing blocking I/O - shows "Blocked" state (D on Linux, 4 on macOS)
+/// Note: True "D" (uninterruptible sleep) is hard to trigger from userspace
+/// This uses file I/O which may briefly show blocked state
+fn blocking_io_worker(stop_flag: Arc<Mutex<bool>>) {
+    std::thread::Builder::new()
+        .name("blocking-io".into())
+        .spawn(move || {
+            let temp_dir = std::env::temp_dir();
+            let file_path = temp_dir.join("hotpath_test_io.tmp");
+
+            for i in 0u64.. {
+                if *stop_flag.lock().unwrap() {
+                    break;
+                }
+
+                // Write to file (may briefly show as blocked during I/O)
+                let data: Vec<u8> = (0..4096).map(|x| (x % 256) as u8).collect();
+                if let Ok(_) = std::fs::write(&file_path, &data) {
+                    // Sync to disk - more likely to show blocked state
+                    if let Ok(file) = std::fs::File::open(&file_path) {
+                        let _ = file.sync_all();
+                    }
+                }
+
+                // Read back
+                let _ = std::fs::read(&file_path);
+
+                if i % 10 == 0 {
+                    std::thread::sleep(Duration::from_millis(50));
+                }
+            }
+
+            // Cleanup
+            let _ = std::fs::remove_file(&file_path);
+        })
+        .expect("Failed to spawn blocking I/O thread");
+}
+
+/// Thread that alternates between running and sleeping states
+fn alternating_state_worker(stop_flag: Arc<Mutex<bool>>) {
+    std::thread::Builder::new()
+        .name("alternating".into())
+        .spawn(move || {
+            let mut counter = 0u64;
+            loop {
+                if *stop_flag.lock().unwrap() {
+                    break;
+                }
+
+                // "Running" phase - CPU work
+                for _ in 0..100_000 {
+                    counter = counter.wrapping_add(1);
+                    std::hint::black_box(counter);
+                }
+
+                // "Sleeping" phase
+                std::thread::sleep(Duration::from_millis(100));
+            }
+        })
+        .expect("Failed to spawn alternating thread");
+}
+
 #[tokio::main]
 #[cfg_attr(feature = "hotpath", hotpath::main)]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Starting 60-second profiling test...");
+    println!("Spawning threads with various states for TUI demonstration...");
+
+    // =========================================================================
+    // Spawn thread state demonstration threads
+    // =========================================================================
+
+    // Shared mutex for contention demo - multiple threads will compete for this
+    let contended_mutex = Arc::new(Mutex::new(0u64));
+    for id in 0..3 {
+        mutex_contention_worker(Arc::clone(&contended_mutex), id);
+    }
+
+    // Parked thread demo - thread parks itself and gets unparked periodically
+    let parked_signal = Arc::new((Mutex::new(false), Condvar::new()));
+    parked_thread_worker(Arc::clone(&parked_signal));
+
+    // Condvar demo - threads waiting on condition variable
+    let condvar_pair = Arc::new((Mutex::new(false), Condvar::new()));
+    for id in 0..2 {
+        condvar_waiter_worker(Arc::clone(&condvar_pair), id);
+    }
+    condvar_signaler_worker(Arc::clone(&condvar_pair));
+
+    // CPU-intensive thread - should show as "Running" frequently
+    let cpu_stop_flag = Arc::new(Mutex::new(false));
+    cpu_intensive_worker(Arc::clone(&cpu_stop_flag));
+
+    // Blocking I/O thread - may show "Blocked" during disk operations
+    let io_stop_flag = Arc::new(Mutex::new(false));
+    blocking_io_worker(Arc::clone(&io_stop_flag));
+
+    // Alternating state thread - switches between Running and Sleeping
+    let alt_stop_flag = Arc::new(Mutex::new(false));
+    alternating_state_worker(Arc::clone(&alt_stop_flag));
+
+    println!("Thread state demo threads spawned:");
+    println!("  - 3x mutex-worker-N: Competing for a shared mutex (Sleeping while waiting)");
+    println!("  - 1x parked-thread: Parked thread (Sleeping)");
+    println!("  - 2x condvar-wait-N: Waiting on condition variable (Sleeping)");
+    println!("  - 1x condvar-signal: Signaling condition variable");
+    println!("  - 1x cpu-intensive: CPU-bound work (Running)");
+    println!("  - 1x blocking-io: File I/O operations (may show Blocked)");
+    println!("  - 1x alternating: Alternates between Running and Sleeping");
+    println!();
 
     let (fast_tx, fast_rx) = mpsc::channel::<u64>(100);
     let (slow_tx, slow_rx) = mpsc::channel::<String>(50);
@@ -297,6 +510,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _ = fast_consumer.await;
 
     slow_consumer.join().unwrap();
+
+    // Signal demo threads to stop
+    println!("Signaling demo threads to stop...");
+    *cpu_stop_flag.lock().unwrap() = true;
+    *io_stop_flag.lock().unwrap() = true;
+    *alt_stop_flag.lock().unwrap() = true;
+
+    // Signal parked thread to exit
+    {
+        let (lock, _) = &*parked_signal;
+        *lock.lock().unwrap() = true;
+    }
+    // Note: The parked thread and other demo threads will eventually exit
+    // We don't join them here to avoid blocking the main thread
+
+    // Give threads a moment to clean up
+    std::thread::sleep(Duration::from_millis(100));
 
     Ok(())
 }

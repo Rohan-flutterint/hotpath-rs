@@ -21,6 +21,10 @@ pub struct ThreadMetrics {
     pub os_tid: u64,
     /// Thread name (if available)
     pub name: String,
+    /// Thread run state as unified name (Running, Sleeping, Blocked, Stopped, Zombie)
+    pub status: String,
+    /// Native OS state code (e.g., "R", "S", "D" on Linux; "1", "2", "3" on macOS)
+    pub status_code: String,
     /// CPU time spent in user mode (seconds)
     pub cpu_user: f64,
     /// CPU time spent in system/kernel mode (seconds)
@@ -42,10 +46,19 @@ pub struct ThreadMetrics {
 }
 
 impl ThreadMetrics {
-    pub fn new(os_tid: u64, name: String, cpu_user: f64, cpu_sys: f64) -> Self {
+    pub fn new(
+        os_tid: u64,
+        name: String,
+        status: String,
+        status_code: String,
+        cpu_user: f64,
+        cpu_sys: f64,
+    ) -> Self {
         Self {
             os_tid,
             name,
+            status,
+            status_code,
             cpu_user,
             cpu_sys,
             cpu_total: cpu_user + cpu_sys,

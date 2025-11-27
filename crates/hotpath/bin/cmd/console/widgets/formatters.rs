@@ -14,6 +14,15 @@ pub(crate) fn truncate_left(s: &str, max_len: usize) -> String {
     }
 }
 
+pub(crate) fn truncate_right(s: &str, max_len: usize) -> String {
+    if s.len() <= max_len {
+        s.to_string()
+    } else {
+        let truncated_len = max_len.saturating_sub(3);
+        format!("{}...", &s[..truncated_len])
+    }
+}
+
 pub(crate) fn queue_status(
     queued: u64,
     channel_type: &ChannelType,

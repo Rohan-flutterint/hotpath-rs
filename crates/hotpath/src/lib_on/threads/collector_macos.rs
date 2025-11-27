@@ -19,6 +19,24 @@ use types::*;
 const KERN_SUCCESS: kern_return_t = 0;
 const THREAD_BASIC_INFO: libc::c_int = 3;
 
+// Mach thread run states (from <mach/thread_info.h>)
+const TH_STATE_RUNNING: i32 = 1;
+const TH_STATE_STOPPED: i32 = 2;
+const TH_STATE_WAITING: i32 = 3;
+const TH_STATE_UNINTERRUPTIBLE: i32 = 4;
+const TH_STATE_HALTED: i32 = 5;
+
+fn run_state_to_status(state: i32) -> (String, String) {
+    match state {
+        TH_STATE_RUNNING => ("Running ".to_string(), "1".to_string()),
+        TH_STATE_STOPPED => ("Stopped".to_string(), "2".to_string()),
+        TH_STATE_WAITING => ("Sleeping".to_string(), "3".to_string()),
+        TH_STATE_UNINTERRUPTIBLE => ("Blocked ".to_string(), "4".to_string()),
+        TH_STATE_HALTED => ("Halted  ".to_string(), "5".to_string()),
+        _ => ("Unknown".to_string(), state.to_string()),
+    }
+}
+
 #[allow(non_camel_case_types)]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -111,20 +129,22 @@ unsafe fn get_thread_info(thread: thread_act_t, index: u64) -> Result<ThreadMetr
         return Err(format!("thread_info failed with code: {}", kr));
     }
 
-    // Get thread identifier (use the mach port as the TID)
     let os_tid = thread as u64;
-
-    // Try to get a meaningful thread name
     let name = get_thread_name(thread).unwrap_or_else(|| format!("thread_{}", index));
-
-    // Convert time values from microseconds to seconds
-    // thread_basic_info uses time_value_t which is {seconds, microseconds}
+    let (status, status_code) = run_state_to_status(thread_info_data.run_state);
     let cpu_user = thread_info_data.user_time.seconds as f64
         + (thread_info_data.user_time.microseconds as f64 / 1_000_000.0);
     let cpu_sys = thread_info_data.system_time.seconds as f64
         + (thread_info_data.system_time.microseconds as f64 / 1_000_000.0);
 
-    Ok(ThreadMetrics::new(os_tid, name, cpu_user, cpu_sys))
+    Ok(ThreadMetrics::new(
+        os_tid,
+        name,
+        status,
+        status_code,
+        cpu_user,
+        cpu_sys,
+    ))
 }
 
 unsafe fn get_thread_name(thread: thread_act_t) -> Option<String> {

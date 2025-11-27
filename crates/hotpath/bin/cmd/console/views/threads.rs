@@ -1,5 +1,5 @@
 use super::common_styles;
-use crate::cmd::console::widgets::formatters::truncate_left;
+use crate::cmd::console::widgets::formatters::truncate_right;
 use hotpath::format_bytes;
 use hotpath::threads::ThreadMetrics;
 use ratatui::{
@@ -78,11 +78,12 @@ pub(crate) fn render_threads_panel(
     frame.render_widget(info_paragraph, info_area);
 
     let available_width = table_area.width.saturating_sub(10);
-    let thread_width = ((available_width as f32 * 0.22) as usize).max(10);
+    let thread_width = ((available_width as f32 * 0.16) as usize).max(10);
 
     let header = Row::new(vec![
         Cell::from("Thread"),
         Cell::from("TID"),
+        Cell::from("Status"),
         Cell::from("CPU %"),
         Cell::from("User"),
         Cell::from("Sys"),
@@ -120,9 +121,12 @@ pub(crate) fn render_threads_panel(
                 ("N/A".to_string(), "N/A".to_string(), "N/A".to_string())
             };
 
+            let status_str = format!("{} ({})", thread.status, thread.status_code);
+
             Row::new(vec![
-                Cell::from(truncate_left(&thread.name, thread_width)),
+                Cell::from(truncate_right(&thread.name, thread_width)),
                 Cell::from(thread.os_tid.to_string()),
+                Cell::from(status_str),
                 Cell::from(cpu_percent_str),
                 Cell::from(format!("{:.2}s", thread.cpu_user)),
                 Cell::from(format!("{:.2}s", thread.cpu_sys)),
@@ -134,13 +138,14 @@ pub(crate) fn render_threads_panel(
         .collect();
 
     let widths = [
-        Constraint::Percentage(22), // Thread name
-        Constraint::Percentage(8),  // TID
-        Constraint::Percentage(10), // CPU %
-        Constraint::Percentage(10), // User
-        Constraint::Percentage(10), // Sys
-        Constraint::Percentage(13), // Alloc
-        Constraint::Percentage(13), // Dealloc
+        Constraint::Percentage(16), // Thread name
+        Constraint::Percentage(6),  // TID
+        Constraint::Percentage(19), // Status
+        Constraint::Percentage(7),  // CPU %
+        Constraint::Percentage(7),  // User
+        Constraint::Percentage(7),  // Sys
+        Constraint::Percentage(12), // Alloc
+        Constraint::Percentage(12), // Dealloc
         Constraint::Percentage(14), // Diff
     ];
 
