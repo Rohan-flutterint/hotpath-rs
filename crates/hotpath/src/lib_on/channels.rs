@@ -13,7 +13,7 @@ use std::time::Instant;
 pub mod guard;
 pub use guard::{ChannelsGuard, ChannelsGuardBuilder};
 
-mod wrappers;
+mod wrapper;
 
 /// A single log entry for a message sent or received.
 #[derive(Debug, Clone, Serialize, Deserialize)]

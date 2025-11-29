@@ -15,7 +15,7 @@ use std::time::Instant;
 pub mod guard;
 pub use guard::{StreamsGuard, StreamsGuardBuilder};
 
-pub(crate) mod wrappers;
+pub(crate) mod wrapper;
 
 // Re-export shared types from channels module
 pub use crate::channels::{ChannelState, Format, LogEntry};
@@ -232,10 +232,10 @@ impl<S> InstrumentStream for S
 where
     S: futures_util::Stream,
 {
-    type Output = crate::streams::wrappers::InstrumentedStream<S>;
+    type Output = crate::streams::wrapper::InstrumentedStream<S>;
 
     fn instrument_stream(self, source: &'static str, label: Option<String>) -> Self::Output {
-        crate::streams::wrappers::InstrumentedStream::new(self, source, label)
+        crate::streams::wrapper::InstrumentedStream::new(self, source, label)
     }
 }
 
@@ -245,10 +245,10 @@ where
     S: futures_util::Stream,
     S::Item: std::fmt::Debug,
 {
-    type Output = crate::streams::wrappers::InstrumentedStreamLog<S>;
+    type Output = crate::streams::wrapper::InstrumentedStreamLog<S>;
 
     fn instrument_stream_log(self, source: &'static str, label: Option<String>) -> Self::Output {
-        crate::streams::wrappers::InstrumentedStreamLog::new(self, source, label)
+        crate::streams::wrapper::InstrumentedStreamLog::new(self, source, label)
     }
 }
 
