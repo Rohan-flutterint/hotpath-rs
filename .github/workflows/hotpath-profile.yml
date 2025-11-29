@@ -23,7 +23,7 @@ jobs:
           # Extract alloc metrics from head branch
           {
             echo 'metrics<<EOF'
-            cargo run --example benchmark --features='hotpath,hotpath-alloc' | grep '^{"hotpath_profiling_mode"'
+            cargo run --release --example benchmark --features='hotpath,hotpath-alloc' | grep '^{"hotpath_profiling_mode"'
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
 
@@ -34,7 +34,7 @@ jobs:
           # Extract timing metrics from head branch
           {
             echo 'metrics<<EOF'
-            cargo run --example benchmark --features='hotpath' | grep '^{"hotpath_profiling_mode"'
+            cargo run --release --example benchmark --features='hotpath' | grep '^{"hotpath_profiling_mode"'
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
       - name: Checkout base
@@ -48,7 +48,7 @@ jobs:
           # Extract alloc metrics from base branch
           {
             echo 'metrics<<EOF'
-            cargo run --example benchmark --features='hotpath,hotpath-alloc' | grep '^{"hotpath_profiling_mode"'
+            cargo run --release --example benchmark --features='hotpath,hotpath-alloc' | grep '^{"hotpath_profiling_mode"'
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
 
@@ -59,7 +59,7 @@ jobs:
           # Extract timing metrics from base branch
           {
             echo 'metrics<<EOF'
-            cargo run --example benchmark --features='hotpath' | grep '^{"hotpath_profiling_mode"'
+            cargo run --release --example benchmark --features='hotpath' | grep '^{"hotpath_profiling_mode"'
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
       - name: Save metrics to artifact
