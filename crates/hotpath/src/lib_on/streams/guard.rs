@@ -6,8 +6,9 @@ use std::time::Instant;
 
 use prettytable::{Cell, Row, Table};
 
-use crate::channels::{resolve_label, Format};
+use crate::channels::resolve_label;
 use crate::streams::{get_sorted_stream_stats, SerializableStreamStats, StreamsJson};
+use crate::Format;
 
 /// Builder for creating a StreamsGuard with custom configuration.
 ///

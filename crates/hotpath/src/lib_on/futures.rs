@@ -2,7 +2,6 @@
 
 use crate::channels::{get_log_limit, resolve_label, START_TIME};
 use crossbeam_channel::{unbounded, Sender as CbSender};
-use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::AtomicU64;
 use std::sync::{OnceLock, RwLock};
@@ -19,6 +18,11 @@ pub(crate) mod wrapper;
 
 pub use guard::{FuturesGuard, FuturesGuardBuilder};
 pub use wrapper::{InstrumentedFuture, InstrumentedFutureLog};
+
+// Re-export Format from crate root
+pub use crate::Format;
+// Re-export JSON types from json module
+pub use crate::json::{FutureCall, FutureCalls, FutureState, FuturesJson, SerializableFutureStats};
 
 pub(crate) static FUTURE_ID_COUNTER: AtomicU64 = AtomicU64::new(0);
 pub(crate) static FUTURE_CALL_ID_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -54,83 +58,6 @@ pub(crate) fn get_or_create_future_id(source: &'static str) -> (u64, bool) {
     (future_id, true)
 }
 
-/// State of an instrumented future.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum FutureState {
-    #[default]
-    Pending,
-    Running,
-    Suspended,
-    Ready,
-    Cancelled,
-}
-
-impl std::fmt::Display for FutureState {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.as_str())
-    }
-}
-
-impl FutureState {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            FutureState::Pending => "pending",
-            FutureState::Running => "running",
-            FutureState::Suspended => "suspended",
-            FutureState::Ready => "ready",
-            FutureState::Cancelled => "cancelled",
-        }
-    }
-}
-
-impl Serialize for FutureState {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(self.as_str())
-    }
-}
-
-impl<'de> Deserialize<'de> for FutureState {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        match s.as_str() {
-            "pending" => Ok(FutureState::Pending),
-            "running" => Ok(FutureState::Running),
-            "suspended" => Ok(FutureState::Suspended),
-            "ready" => Ok(FutureState::Ready),
-            "cancelled" => Ok(FutureState::Cancelled),
-            _ => Err(serde::de::Error::custom("invalid future state")),
-        }
-    }
-}
-
-/// A single invocation/call of a future.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FutureCall {
-    pub id: u64,
-    pub future_id: u64,
-    pub state: FutureState,
-    pub poll_count: u64,
-    pub result: Option<String>,
-}
-
-impl FutureCall {
-    fn new(id: u64, future_id: u64) -> Self {
-        Self {
-            id,
-            future_id,
-            state: FutureState::default(),
-            poll_count: 0,
-            result: None,
-        }
-    }
-}
-
 /// Aggregated statistics for a source location.
 #[derive(Debug, Clone)]
 pub struct FutureStats {
@@ -163,24 +90,6 @@ impl FutureStats {
     }
 }
 
-/// Wrapper for futures-only JSON response
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FuturesJson {
-    pub current_elapsed_ns: u64,
-    pub futures: Vec<SerializableFutureStats>,
-}
-
-/// Serializable version of future statistics for JSON responses.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SerializableFutureStats {
-    pub id: u64,
-    pub source: String,
-    pub label: String,
-    pub has_custom_label: bool,
-    pub call_count: u64,
-    pub total_polls: u64,
-}
-
 impl From<&FutureStats> for SerializableFutureStats {
     fn from(future_stats: &FutureStats) -> Self {
         let label = resolve_label(future_stats.source, future_stats.label.as_deref(), None);
@@ -194,13 +103,6 @@ impl From<&FutureStats> for SerializableFutureStats {
             total_polls: future_stats.total_polls(),
         }
     }
-}
-
-/// Serializable response for future calls.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FutureCalls {
-    pub id: String,
-    pub calls: Vec<FutureCall>,
 }
 
 /// Result of polling a future.

@@ -1,23 +1,18 @@
 #[allow(unused_mut)]
 #[tokio::main]
 async fn main() {
-    #[cfg(feature = "hotpath")]
     let _channels_guard = hotpath::channels::ChannelsGuardBuilder::new()
         .format(hotpath::channels::Format::JsonPretty)
         .build();
 
-    let (txa, mut _rxa) = tokio::sync::mpsc::unbounded_channel::<i32>();
+    let (txa, _rxa) = hotpath::channel!(tokio::sync::mpsc::unbounded_channel::<i32>());
 
-    #[cfg(feature = "hotpath")]
-    let (txa, _rxa) = hotpath::channel!((txa, _rxa));
+    let (txb, mut rxb) = hotpath::channel!(tokio::sync::mpsc::channel::<i32>(10));
 
-    let (txb, mut rxb) = tokio::sync::mpsc::channel::<i32>(10);
-    #[cfg(feature = "hotpath")]
-    let (txb, mut rxb) = hotpath::channel!((txb, rxb));
-
-    let (txc, rxc) = tokio::sync::oneshot::channel::<String>();
-    #[cfg(feature = "hotpath")]
-    let (txc, rxc) = hotpath::channel!((txc, rxc), label = "hello-there");
+    let (txc, rxc) = hotpath::channel!(
+        tokio::sync::oneshot::channel::<String>(),
+        label = "hello-there"
+    );
 
     let sender_handle = tokio::spawn(async move {
         for i in 1..=3 {

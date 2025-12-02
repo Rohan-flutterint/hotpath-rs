@@ -5,11 +5,10 @@ publish = false
 edition = "2021"
 
 [features]
-default = ['hotpath']
-hotpath = ["dep:hotpath", "hotpath/hotpath"]
+hotpath = ["hotpath/hotpath"]
 hotpath-alloc = ["hotpath/hotpath-alloc"]
 hotpath-off = ["hotpath/hotpath-off"]
 
 [dependencies]
-hotpath = { path = "../hotpath", optional = true, features = ["tokio"] }
+hotpath = { path = "../hotpath", features = ["tokio"] }
 tokio = { version = "1", features = ["full"] }

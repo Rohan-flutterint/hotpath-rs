@@ -3,7 +3,6 @@ use std::time::Duration;
 
 #[allow(unused_mut)]
 fn main() {
-    #[cfg(feature = "hotpath")]
     let _channels_guard = hotpath::channels::ChannelsGuard::new();
 
     println!("Slow Consumer Example:");
@@ -12,9 +11,12 @@ fn main() {
     println!("- Consumer processes 1 message every 20ms");
     println!("- Queue will back up!\n");
 
-    let (tx, rx) = std::sync::mpsc::sync_channel::<i32>(10);
-    #[cfg(feature = "hotpath")]
-    let (tx, rx) = hotpath::channel!((tx, rx), capacity = 10, label = "slow-consumer", log = true);
+    let (tx, rx) = hotpath::channel!(
+        std::sync::mpsc::sync_channel::<i32>(10),
+        capacity = 10,
+        label = "slow-consumer",
+        log = true
+    );
 
     // Producer: sends every 10ms
     let producer_handle = thread::spawn(move || {

@@ -30,4 +30,4 @@ jobs:
           cargo test --lib --features hotpath
       - name: Run threads tests
         run: |
-          cargo test --test threads -- --nocapture --test-threads=1
+          cargo test --features hotpath --test threads -- --nocapture --test-threads=1

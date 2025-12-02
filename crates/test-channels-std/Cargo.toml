@@ -5,7 +5,7 @@ publish = false
 edition = "2021"
 
 [dependencies]
-hotpath = { workspace = true, optional = true }
+hotpath = { workspace = true }
 
 [features]
-hotpath = ["dep:hotpath", "hotpath/hotpath"]
+hotpath = ["hotpath/hotpath"]

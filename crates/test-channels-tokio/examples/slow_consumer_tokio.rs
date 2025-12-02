@@ -3,7 +3,6 @@ use tokio::time::{sleep, Duration};
 #[allow(unused_mut)]
 #[tokio::main]
 async fn main() {
-    #[cfg(feature = "hotpath")]
     let _channels_guard = hotpath::channels::ChannelsGuard::new();
 
     println!("Slow Consumer Example:");
@@ -12,10 +11,12 @@ async fn main() {
     println!("- Consumer processes 1 message every 20ms");
     println!("- Queue will back up!\n");
 
-    let (tx, mut rx) = tokio::sync::mpsc::channel::<i32>(10);
-    #[cfg(feature = "hotpath")]
-    let (tx, mut rx) =
-        hotpath::channel!((tx, rx), capacity = 10, label = "slow-consumer", log = true);
+    let (tx, mut rx) = hotpath::channel!(
+        tokio::sync::mpsc::channel::<i32>(10),
+        capacity = 10,
+        label = "slow-consumer",
+        log = true
+    );
 
     // Producer: sends every 100ms
     let producer_handle = tokio::spawn(async move {

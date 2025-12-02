@@ -1,7 +1,7 @@
 use num_bigint::BigUint;
 
 /// Iterative fibonacci using BigUint - no overflow
-#[cfg_attr(feature = "hotpath", hotpath::measure(log = true))]
+#[hotpath::measure(log = true)]
 fn fibonacci(n: u64) -> BigUint {
     if n == 0 {
         return BigUint::from(0u32);
@@ -22,7 +22,7 @@ fn fibonacci(n: u64) -> BigUint {
     b
 }
 
-#[cfg_attr(feature = "hotpath", hotpath::main)]
+#[hotpath::main]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Fibonacci computation with hotpath profiling");
     println!("Run TUI in another terminal with:");

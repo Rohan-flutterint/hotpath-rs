@@ -5,7 +5,6 @@ use std::time::Duration;
 #[allow(unused_mut)]
 fn main() {
     smol::block_on(async {
-        #[cfg(feature = "hotpath")]
         let _channels_guard = hotpath::channels::ChannelsGuard::new();
 
         println!("Open the TUI console to watch live updates!");
@@ -13,100 +12,83 @@ fn main() {
         Timer::after(Duration::from_secs(2)).await;
 
         // Channel 1: Fast data stream - unbounded, rapid messages
-        let (tx_fast, mut rx_fast) = futures_channel::mpsc::unbounded::<String>();
-        #[cfg(feature = "hotpath")]
-        let (tx_fast, mut rx_fast) =
-            hotpath::channel!((tx_fast, rx_fast), label = "fast-stream", log = true);
+        let (tx_fast, mut rx_fast) = hotpath::channel!(
+            futures_channel::mpsc::unbounded::<String>(),
+            label = "fast-stream",
+            log = true
+        );
 
         // Channel 2: Slow consumer - bounded(5), will back up!
-        let (mut tx_slow, mut rx_slow) = futures_channel::mpsc::channel::<String>(5);
-        #[cfg(feature = "hotpath")]
         let (mut tx_slow, mut rx_slow) = hotpath::channel!(
-            (tx_slow, rx_slow),
+            futures_channel::mpsc::channel::<String>(5),
             label = "slow-consumer",
             capacity = 5,
             log = true
         );
 
         // Channel 3: Burst traffic - bounded(10), bursts every 3 seconds
-        let (mut tx_burst, mut rx_burst) = futures_channel::mpsc::channel::<u64>(10);
-        #[cfg(feature = "hotpath")]
         let (mut tx_burst, mut rx_burst) = hotpath::channel!(
-            (tx_burst, rx_burst),
+            futures_channel::mpsc::channel::<u64>(10),
             label = "burst-traffic",
             capacity = 10,
             log = true
         );
 
         // Channel 4: Gradual flow - bounded(20), increasing rate
-        let (mut tx_gradual, mut rx_gradual) = futures_channel::mpsc::channel::<f64>(20);
-        #[cfg(feature = "hotpath")]
         let (mut tx_gradual, mut rx_gradual) = hotpath::channel!(
-            (tx_gradual, rx_gradual),
+            futures_channel::mpsc::channel::<f64>(20),
             label = "gradual-flow",
             capacity = 20,
             log = true
         );
 
         // Channel 5: Dropped early - unbounded, producer dies at 10s
-        let (tx_drop_early, mut rx_drop_early) = futures_channel::mpsc::unbounded::<bool>();
-        #[cfg(feature = "hotpath")]
         let (tx_drop_early, mut rx_drop_early) = hotpath::channel!(
-            (tx_drop_early, rx_drop_early),
+            futures_channel::mpsc::unbounded::<bool>(),
             label = "dropped-early",
             log = true
         );
 
         // Channel 6: Consumer dies - bounded(8), consumer stops at 15s
-        let (mut tx_consumer_dies, mut rx_consumer_dies) =
-            futures_channel::mpsc::channel::<Vec<u8>>(8);
-        #[cfg(feature = "hotpath")]
         let (mut tx_consumer_dies, mut rx_consumer_dies) = hotpath::channel!(
-            (tx_consumer_dies, rx_consumer_dies),
+            futures_channel::mpsc::channel::<Vec<u8>>(8),
             label = "consumer-dies",
             capacity = 8,
             log = true
         );
 
         // Channel 7: Steady stream - unbounded, consistent 500ms rate
-        let (tx_steady, mut rx_steady) = futures_channel::mpsc::unbounded::<&str>();
-        #[cfg(feature = "hotpath")]
-        let (tx_steady, mut rx_steady) =
-            hotpath::channel!((tx_steady, rx_steady), label = "steady-stream", log = true);
+        let (tx_steady, mut rx_steady) = hotpath::channel!(
+            futures_channel::mpsc::unbounded::<&str>(),
+            label = "steady-stream",
+            log = true
+        );
 
         // Channel 8: Oneshot early - fires at 5 seconds
-        let (tx_oneshot_early, rx_oneshot_early) = futures_channel::oneshot::channel::<String>();
-        #[cfg(feature = "hotpath")]
         let (tx_oneshot_early, rx_oneshot_early) = hotpath::channel!(
-            (tx_oneshot_early, rx_oneshot_early),
+            futures_channel::oneshot::channel::<String>(),
             label = "oneshot-early",
             log = true
         );
 
         // Channel 9: Oneshot mid - fires at 15 seconds
-        let (tx_oneshot_mid, rx_oneshot_mid) = futures_channel::oneshot::channel::<u32>();
-        #[cfg(feature = "hotpath")]
         let (tx_oneshot_mid, rx_oneshot_mid) = hotpath::channel!(
-            (tx_oneshot_mid, rx_oneshot_mid),
+            futures_channel::oneshot::channel::<u32>(),
             label = "oneshot-mid",
             log = true
         );
 
         // Channel 10: Oneshot late - fires at 25 seconds
-        let (tx_oneshot_late, rx_oneshot_late) = futures_channel::oneshot::channel::<i64>();
-        #[cfg(feature = "hotpath")]
         let (tx_oneshot_late, rx_oneshot_late) = hotpath::channel!(
-            (tx_oneshot_late, rx_oneshot_late),
+            futures_channel::oneshot::channel::<i64>(),
             label = "oneshot-late",
             log = true
         );
 
         println!("Creating 3 bounded iter channels...");
         for i in 0..3 {
-            let (mut tx, mut rx) = futures_channel::mpsc::channel::<u32>(5);
-
-            #[cfg(feature = "hotpath")]
-            let (mut tx, mut rx) = hotpath::channel!((tx, rx), capacity = 5);
+            let (mut tx, mut rx) =
+                hotpath::channel!(futures_channel::mpsc::channel::<u32>(5), capacity = 5);
 
             smol::spawn(async move {
                 for j in 0..5 {

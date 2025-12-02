@@ -230,9 +230,9 @@ pub(crate) fn wrap_unbounded_log<T: Send + std::fmt::Debug + 'static>(
     wrap_unbounded_impl(inner, source, label, |msg| Some(format!("{:?}", msg)))
 }
 
-use crate::channels::Instrument;
+use crate::channels::InstrumentChannel;
 
-impl<T: Send + 'static> Instrument
+impl<T: Send + 'static> InstrumentChannel
     for (crossbeam_channel::Sender<T>, crossbeam_channel::Receiver<T>)
 {
     type Output = (crossbeam_channel::Sender<T>, crossbeam_channel::Receiver<T>);
@@ -251,9 +251,9 @@ impl<T: Send + 'static> Instrument
     }
 }
 
-use crate::channels::InstrumentLog;
+use crate::channels::InstrumentChannelLog;
 
-impl<T: Send + std::fmt::Debug + 'static> InstrumentLog
+impl<T: Send + std::fmt::Debug + 'static> InstrumentChannelLog
     for (crossbeam_channel::Sender<T>, crossbeam_channel::Receiver<T>)
 {
     type Output = (crossbeam_channel::Sender<T>, crossbeam_channel::Receiver<T>);

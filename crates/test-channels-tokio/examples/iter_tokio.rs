@@ -10,17 +10,16 @@ async fn main() {
         name: "Actor 1".to_string(),
     };
 
-    #[cfg(feature = "hotpath")]
     let _channels_guard = hotpath::channels::ChannelsGuard::new();
 
     println!("Creating channels in loops...\n");
 
     println!("Creating 3 bounded channels:");
     for i in 0..3 {
-        let (tx, mut rx) = tokio::sync::mpsc::channel::<i32>(10);
-
-        #[cfg(feature = "hotpath")]
-        let (tx, mut rx) = hotpath::channel!((tx, rx), label = _actor1.name.clone());
+        let (tx, mut rx) = hotpath::channel!(
+            tokio::sync::mpsc::channel::<i32>(10),
+            label = _actor1.name.clone()
+        );
 
         println!("  - Created bounded channel {}", i);
 
@@ -32,10 +31,7 @@ async fn main() {
 
     println!("\nCreating 3 unbounded channels:");
     for i in 0..3 {
-        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<i32>();
-
-        #[cfg(feature = "hotpath")]
-        let (tx, mut rx) = hotpath::channel!((tx, rx));
+        let (tx, mut rx) = hotpath::channel!(tokio::sync::mpsc::unbounded_channel::<i32>());
 
         println!("  - Created unbounded channel {}", i);
 
@@ -47,10 +43,7 @@ async fn main() {
 
     println!("\nCreating 3 oneshot channels:");
     for i in 0..3 {
-        let (tx, rx) = tokio::sync::oneshot::channel::<String>();
-
-        #[cfg(feature = "hotpath")]
-        let (tx, rx) = hotpath::channel!((tx, rx));
+        let (tx, rx) = hotpath::channel!(tokio::sync::oneshot::channel::<String>());
 
         println!("  - Created oneshot channel {}", i);
 
@@ -64,7 +57,6 @@ async fn main() {
 
     println!("\nAll channels created and used!");
 
-    #[cfg(feature = "hotpath")]
     drop(_channels_guard);
 
     println!("\nExample completed!");

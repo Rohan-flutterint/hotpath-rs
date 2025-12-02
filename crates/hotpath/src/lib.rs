@@ -2,41 +2,61 @@
 //! Instrument any function or code block with to quickly spot bottlenecks, and focus your optimizations where they matter most.
 //! ## Setup & Usage
 //! For a complete setup guide, examples, and advanced configuration, see the
-//! [GitHub repository](https://github.com/pawurb/hotpath).
+//! [GitHub repository](https://github.com/pawurb/hotpath-rs).
 
-#[cfg(not(feature = "hotpath-off"))]
+/// Output format for guard statistics on drop.
+#[derive(Clone, Copy, Debug, Default)]
+pub enum Format {
+    #[default]
+    Table,
+    Json,
+    JsonPretty,
+}
+
+#[cfg(all(feature = "hotpath", not(feature = "hotpath-off")))]
 #[doc(inline)]
 pub use lib_on::*;
-#[cfg(not(feature = "hotpath-off"))]
+#[cfg(all(feature = "hotpath", not(feature = "hotpath-off")))]
 mod lib_on;
 
-#[cfg(not(feature = "hotpath-off"))]
+#[cfg(all(feature = "hotpath", not(feature = "hotpath-off")))]
 pub use lib_on::channels;
-#[cfg(not(feature = "hotpath-off"))]
+#[cfg(all(feature = "hotpath", not(feature = "hotpath-off")))]
 pub use lib_on::futures;
-#[cfg(not(feature = "hotpath-off"))]
+#[cfg(all(feature = "hotpath", not(feature = "hotpath-off")))]
 pub use lib_on::streams;
-#[cfg(all(not(feature = "hotpath-off"), feature = "threads"))]
+#[cfg(all(feature = "hotpath", not(feature = "hotpath-off"), feature = "threads"))]
 pub use lib_on::threads;
 
-#[allow(dead_code)]
+#[cfg(any(feature = "hotpath", feature = "ci", feature = "tui"))]
 pub(crate) mod output;
+#[cfg(any(feature = "hotpath", feature = "ci", feature = "tui"))]
 pub use output::{
     format_bytes, format_duration, shorten_function_name, FunctionLogsJson, FunctionsDataJson,
     FunctionsJson, MetricType, MetricsProvider, ProfilingMode, Reporter,
 };
 
-#[cfg(not(feature = "hotpath-off"))]
+#[cfg(all(feature = "hotpath", not(feature = "hotpath-off")))]
 pub(crate) mod http_server;
-#[cfg(not(feature = "hotpath-off"))]
-pub use http_server::Route;
 
-#[cfg(not(feature = "hotpath-off"))]
+#[cfg(any(feature = "hotpath", feature = "ci", feature = "tui"))]
+pub mod json;
+#[cfg(any(feature = "hotpath", feature = "ci", feature = "tui"))]
+pub use json::Route;
+
+#[cfg(all(feature = "hotpath", not(feature = "hotpath-off")))]
 pub(crate) mod tid;
 
-// When hotpath is disabled with hotpath-off feature we import methods from lib_off, which are all no-op
-#[cfg(feature = "hotpath-off")]
+// When hotpath feature is not enabled or hotpath-off is enabled, use no-op stubs
+#[cfg(any(not(feature = "hotpath"), feature = "hotpath-off"))]
 #[doc(inline)]
 pub use lib_off::*;
-#[cfg(feature = "hotpath-off")]
+#[cfg(any(not(feature = "hotpath"), feature = "hotpath-off"))]
 mod lib_off;
+
+#[cfg(any(not(feature = "hotpath"), feature = "hotpath-off"))]
+pub use lib_off::channels;
+#[cfg(any(not(feature = "hotpath"), feature = "hotpath-off"))]
+pub use lib_off::futures;
+#[cfg(any(not(feature = "hotpath"), feature = "hotpath-off"))]
+pub use lib_off::streams;

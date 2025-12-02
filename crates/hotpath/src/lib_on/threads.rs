@@ -1,7 +1,6 @@
 //! This module provides real-time thread monitoring capabilities, collecting
 //! CPU usage statistics for all threads in the current process.
 
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock, RwLock};
 use std::time::{Duration, Instant};
@@ -14,88 +13,21 @@ mod collector;
 #[path = "threads/collector_linux.rs"]
 mod collector;
 
-/// Thread metrics collected from the OS.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ThreadMetrics {
-    /// Operating system thread ID (Mach port on macOS)
-    pub os_tid: u64,
-    /// Thread name (if available)
-    pub name: String,
-    /// Thread run state as unified name (Running, Sleeping, Blocked, Stopped, Zombie)
-    pub status: String,
-    /// Native OS state code (e.g., "R", "S", "D" on Linux; "1", "2", "3" on macOS)
-    pub status_code: String,
-    /// CPU time spent in user mode (seconds)
-    pub cpu_user: f64,
-    /// CPU time spent in system/kernel mode (seconds)
-    pub cpu_sys: f64,
-    /// Total CPU time (user + system, seconds)
-    pub cpu_total: f64,
-    /// CPU usage percentage (based on delta from previous sample)
-    /// None if this is the first sample
-    pub cpu_percent: Option<f64>,
-    /// Total bytes allocated by this thread (only with hotpath-alloc)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub alloc_bytes: Option<u64>,
-    /// Total bytes deallocated by this thread (only with hotpath-alloc)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub dealloc_bytes: Option<u64>,
-    /// Current memory held (alloc - dealloc)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub mem_diff: Option<i64>,
-}
+// Re-export JSON types from json module
+pub use crate::json::{ThreadMetrics, ThreadsJson};
 
-impl ThreadMetrics {
-    pub fn new(
-        os_tid: u64,
-        name: String,
-        status: String,
-        status_code: String,
-        cpu_user: f64,
-        cpu_sys: f64,
-    ) -> Self {
-        Self {
-            os_tid,
-            name,
-            status,
-            status_code,
-            cpu_user,
-            cpu_sys,
-            cpu_total: cpu_user + cpu_sys,
-            cpu_percent: None,
-            alloc_bytes: None,
-            dealloc_bytes: None,
-            mem_diff: None,
+pub fn thread_metrics_with_percentage(
+    mut metrics: ThreadMetrics,
+    prev: Option<&ThreadMetrics>,
+    elapsed_secs: f64,
+) -> ThreadMetrics {
+    if let Some(prev_metrics) = prev {
+        if prev_metrics.os_tid == metrics.os_tid && elapsed_secs > 0.0 {
+            let cpu_delta = metrics.cpu_total - prev_metrics.cpu_total;
+            metrics.cpu_percent = Some((cpu_delta / elapsed_secs) * 100.0);
         }
     }
-
-    /// Calculate CPU percentage based on previous metrics and elapsed time
-    pub fn with_percentage(mut self, prev: Option<&ThreadMetrics>, elapsed_secs: f64) -> Self {
-        if let Some(prev_metrics) = prev {
-            if prev_metrics.os_tid == self.os_tid && elapsed_secs > 0.0 {
-                let cpu_delta = self.cpu_total - prev_metrics.cpu_total;
-                // CPU % = (delta CPU time / elapsed wall time) * 100
-                self.cpu_percent = Some((cpu_delta / elapsed_secs) * 100.0);
-            }
-        }
-        self
-    }
-}
-
-/// JSON response structure for /threads endpoint
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ThreadsJson {
-    /// Current elapsed time since program start in nanoseconds
-    pub current_elapsed_ns: u64,
-    /// Sample interval in milliseconds
-    pub sample_interval_ms: u64,
-    /// Thread metrics
-    pub threads: Vec<ThreadMetrics>,
-    /// Total number of threads
-    pub thread_count: usize,
-    /// Process RSS (Resident Set Size) in bytes
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub rss_bytes: Option<u64>,
+    metrics
 }
 
 /// Internal state for thread monitoring
@@ -168,7 +100,8 @@ fn collector_loop(state: ThreadsStateRef, interval: Duration) {
                 for metric in raw_metrics {
                     let prev = state_guard.previous_metrics.get(&metric.os_tid);
                     #[allow(unused_mut)]
-                    let mut m_with_percent = metric.clone().with_percentage(prev, elapsed_secs);
+                    let mut m_with_percent =
+                        thread_metrics_with_percentage(metric.clone(), prev, elapsed_secs);
 
                     // Merge per-thread allocation stats
                     #[cfg(feature = "hotpath-alloc")]

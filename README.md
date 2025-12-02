@@ -83,12 +83,12 @@ To ensure compatibility with `--all-features` setting, the crate defines an addi
 ```rust
 use std::time::Duration;
 
-#[cfg_attr(feature = "hotpath", hotpath::measure)]
+#[hotpath::measure]
 fn sync_function(sleep: u64) {
     std::thread::sleep(Duration::from_nanos(sleep));
 }
 
-#[cfg_attr(feature = "hotpath", hotpath::measure)]
+#[hotpath::measure]
 async fn async_function(sleep: u64) {
     tokio::time::sleep(Duration::from_nanos(sleep)).await;
 }
@@ -96,7 +96,7 @@ async fn async_function(sleep: u64) {
 // When using with tokio, place the #[tokio::main] first
 #[tokio::main]
 // You can configure any percentile between 0 and 100
-#[cfg_attr(feature = "hotpath", hotpath::main(percentiles = [99]))]
+#[hotpath::main(percentiles = [99])]
 async fn main() {
     for i in 0..100 {
         // Measured functions will automatically send metrics
@@ -192,7 +192,7 @@ async fn main() {
     _ = inner_main().await;
 }
 
-#[cfg_attr(feature = "hotpath", hotpath::main)]
+#[hotpath::main]
 async fn inner_main() {
     // ...
 }
@@ -214,14 +214,13 @@ The `channel!` macro wraps channel creation to automatically track statistics:
 use tokio::sync::mpsc;
 
 #[tokio::main]
-#[cfg_attr(feature = "hotpath", hotpath::main)]
+#[hotpath::main]
 async fn main() {
-    // Create a channel normally
-    let (tx, rx) = mpsc::channel::<String>(100);
-
-    // Instrument it when profiling is enabled
+    // Create and instrument a channel in one step
     #[cfg(feature = "hotpath")]
-    let (tx, rx) = hotpath::channel!((tx, rx));
+    let (tx, mut rx) = hotpath::channel!(mpsc::channel::<String>(100));
+    #[cfg(not(feature = "hotpath"))]
+    let (tx, mut rx) = mpsc::channel::<String>(100);
 
     // Use the channel exactly as before
     tx.send("Hello".to_string()).await.unwrap();
@@ -245,10 +244,10 @@ async fn main() {
 
 ```rust
 // Custom label for easier identification in TUI
-let (tx, rx) = hotpath::channel!((tx, rx), label = "worker_queue");
+let (tx, rx) = hotpath::channel!(mpsc::channel::<String>(100), label = "worker_queue");
 
 // Enable message logging (requires Debug trait on message type)
-let (tx, rx) = hotpath::channel!((tx, rx), log = true);
+let (tx, rx) = hotpath::channel!(mpsc::channel::<String>(100), log = true);
 ```
 
 **Capacity parameter requirement:**
@@ -259,9 +258,10 @@ let (tx, rx) = hotpath::channel!((tx, rx), log = true);
 use futures_channel::mpsc;
 
 // futures bounded channel - MUST specify capacity
-let (tx, rx) = mpsc::channel::<String>(10);
 #[cfg(feature = "hotpath")]
-let (tx, rx) = hotpath::channel!((tx, rx), capacity = 10);
+let (tx, rx) = hotpath::channel!(mpsc::channel::<String>(10), capacity = 10);
+#[cfg(not(feature = "hotpath"))]
+let (tx, rx) = mpsc::channel::<String>(10);
 ```
 
 Tokio and crossbeam channels don't require this parameter because their capacity is accessible from the channel handles.
@@ -272,7 +272,7 @@ The `future!` macro and `#[future_fn]` attribute instrument async futures to tra
 
 ```rust
 #[tokio::main]
-#[cfg_attr(feature = "hotpath", hotpath::main)]
+#[hotpath::main]
 async fn main() {
     // Instrument a future expression
     #[cfg(feature = "hotpath")]
@@ -282,7 +282,7 @@ async fn main() {
     instrumented_fetch().await;
 }
 
-#[cfg_attr(feature = "hotpath", hotpath::future_fn(log = true))]
+#[hotpath::future_fn(log = true)]
 async fn instrumented_fetch() -> Vec<u8> {
     vec![1, 2, 3]
 }
@@ -294,7 +294,7 @@ async fn instrumented_fetch() -> Vec<u8> {
 // Log the result value (requires Debug on return type)
 let result = hotpath::future!(async { 42 }, log = true).await;
 
-#[cfg_attr(feature = "hotpath", hotpath::future_fn(log = true))]
+#[hotpath::future_fn(log = true)]
 async fn compute() -> i32 { 42 }
 ```
 
@@ -306,14 +306,13 @@ The `stream!` macro instruments async streams to track items yielded:
 use futures::stream::{self, StreamExt};
 
 #[tokio::main]
-#[cfg_attr(feature = "hotpath", hotpath::main)]
+#[hotpath::main]
 async fn main() {
-    // Create a stream
-    let s = stream::iter(1..=100);
-
-    // Instrument it when profiling is enabled
+    // Create and instrument a stream in one step
     #[cfg(feature = "hotpath")]
-    let s = hotpath::stream!(s);
+    let s = hotpath::stream!(stream::iter(1..=100));
+    #[cfg(not(feature = "hotpath"))]
+    let s = stream::iter(1..=100);
 
     // Use it normally
     let items: Vec<_> = s.collect().await;
@@ -324,10 +323,10 @@ async fn main() {
 
 ```rust
 // Custom label
-let s = hotpath::stream!(s, label = "data_stream");
+let s = hotpath::stream!(stream::iter(1..=100), label = "data_stream");
 
 // Enable item logging (requires Debug trait on item type)
-let s = hotpath::stream!(s, log = true);
+let s = hotpath::stream!(stream::iter(1..=100), log = true);
 ```
 
 ### Viewing Channel and Stream Metrics in TUI
@@ -385,9 +384,10 @@ async fn main() {
     let _guard = hotpath::ChannelsGuard::new();
 
     // Your code with instrumented channels...
-    let (tx, rx) = mpsc::channel::<i32>(10);
     #[cfg(feature = "hotpath")]
-    let (tx, rx) = hotpath::channel!((tx, rx), label = "task-queue");
+    let (tx, mut rx) = hotpath::channel!(mpsc::channel::<i32>(10), label = "task-queue");
+    #[cfg(not(feature = "hotpath"))]
+    let (tx, mut rx) = mpsc::channel::<i32>(10);
 
     // ... use your channels ...
 
@@ -420,8 +420,8 @@ let _guard = hotpath::ChannelsGuardBuilder::new()
 
 ## How It Works
 
-1. `#[cfg_attr(feature = "hotpath", hotpath::main)]` - Macro that initializes the background measurement processing
-2. `#[cfg_attr(feature = "hotpath", hotpath::measure)]` - Macro that wraps functions with profiling code
+1. `#[hotpath::main]` - Macro that initializes the background measurement processing
+2. `#[hotpath::measure]` - Macro that wraps functions with profiling code
 3. **Background thread** - Measurements are sent to a dedicated worker thread via bounded channel
 4. **Statistics aggregation** - Worker thread maintains running statistics for each function/code block
 5. **Automatic reporting** - Performance summary displayed when the program exits
@@ -452,7 +452,7 @@ Example:
 
 ```rust
 // Measure all methods in an impl block
-#[cfg_attr(feature = "hotpath", hotpath::measure_all)]
+#[hotpath::measure_all]
 impl Calculator {
     fn add(&self, a: u64, b: u64) -> u64 { a + b }
     fn multiply(&self, a: u64, b: u64) -> u64 { a * b }
@@ -460,7 +460,7 @@ impl Calculator {
 }
 
 // Measure all functions in a module
-#[cfg_attr(feature = "hotpath", hotpath::measure_all)]
+#[hotpath::measure_all]
 mod math_operations {
     pub fn complex_calculation(x: f64) -> f64 { /* ... */ }
     pub async fn fetch_data() -> Vec<u8> { /* ... */ }
@@ -476,11 +476,11 @@ A marker attribute that excludes specific functions from instrumentation when us
 Example:
 
 ```rust
-#[cfg_attr(feature = "hotpath", hotpath::measure_all)]
+#[hotpath::measure_all]
 mod operations {
     pub fn important_function() { /* ... */ } // Measured
 
-    #[cfg_attr(feature = "hotpath", hotpath::skip)]
+    #[hotpath::skip]
     pub fn not_so_important_function() { /* ... */ } // NOT measured
 }
 ```
@@ -494,10 +494,10 @@ Macro that measures the execution time of a code block with a static string labe
 Macro that instruments channels to track message flow statistics. Wraps channel creation with monitoring code that tracks sent/received counts, queue size, and channel state.
 
 **Supported patterns:**
-- `hotpath::channel!((tx, rx))` - Basic instrumentation
-- `hotpath::channel!((tx, rx), label = "name")` - With custom label
-- `hotpath::channel!((tx, rx), log = true)` - With message logging (requires Debug trait)
-- `hotpath::channel!((tx, rx), label = "name", log = true)` - Both options combined
+- `hotpath::channel!(mpsc::channel::<T>(size))` - Basic instrumentation
+- `hotpath::channel!(mpsc::channel::<T>(size), label = "name")` - With custom label
+- `hotpath::channel!(mpsc::channel::<T>(size), log = true)` - With message logging (requires Debug trait)
+- `hotpath::channel!(mpsc::channel::<T>(size), label = "name", log = true)` - Both options combined
 
 **Supported channel types:** `tokio::sync::mpsc`, `tokio::sync::oneshot`, `futures_channel::mpsc`, `crossbeam_channel`
 
@@ -506,10 +506,10 @@ Macro that instruments channels to track message flow statistics. Wraps channel 
 Macro that instruments streams to track items yielded. Wraps stream creation with monitoring code that tracks yield count and stream state.
 
 **Supported patterns:**
-- `hotpath::stream!(s)` - Basic instrumentation
-- `hotpath::stream!(s, label = "name")` - With custom label
-- `hotpath::stream!(s, log = true)` - With item logging (requires Debug trait)
-- `hotpath::stream!(s, label = "name", log = true)` - Both options combined
+- `hotpath::stream!(stream::iter(1..=100))` - Basic instrumentation
+- `hotpath::stream!(stream::iter(1..=100), label = "name")` - With custom label
+- `hotpath::stream!(stream::iter(1..=100), log = true)` - With item logging (requires Debug trait)
+- `hotpath::stream!(stream::iter(1..=100), label = "name", log = true)` - Both options combined
 
 ### GuardBuilder API (Function Profiling)
 
@@ -573,7 +573,7 @@ let _guard = hotpath::GuardBuilder::new("main")
 ```rust
 use std::time::Duration;
 
-#[cfg_attr(feature = "hotpath", hotpath::measure)]
+#[hotpath::measure]
 fn work_function() {
     std::thread::sleep(Duration::from_millis(10));
 }
@@ -608,7 +608,7 @@ Only one hotpath guard may be alive at a time, regardless of whether it was crea
 ```rust
 use std::time::Duration;
 
-#[cfg_attr(feature = "hotpath", hotpath::measure)]
+#[hotpath::measure]
 fn example_function() {
     std::thread::sleep(Duration::from_millis(10));
 }
@@ -677,7 +677,7 @@ By default, `hotpath` displays P95 percentile in the performance summary. You ca
 
 ```rust
 #[tokio::main]
-#[cfg_attr(feature = "hotpath", hotpath::main(percentiles = [50, 75, 90, 95, 99]))]
+#[hotpath::main(percentiles = [50, 75, 90, 95, 99])]
 async fn main() {
     // Your code here
 }
@@ -691,7 +691,7 @@ By default, `hotpath` displays results in a human-readable table format. You can
 
 ```rust
 #[tokio::main]
-#[cfg_attr(feature = "hotpath", hotpath::main(format = "json-pretty"))]
+#[hotpath::main(format = "json-pretty")]
 async fn main() {
     // Your code here
 }
@@ -729,7 +729,7 @@ Example JSON output:
 You can combine multiple parameters:
 
 ```rust
-#[cfg_attr(feature = "hotpath", hotpath::main(percentiles = [50, 90, 99], format = "json", limit = 10, timeout = 30000))]
+#[hotpath::main(percentiles = [50, 90, 99], format = "json", limit = 10, timeout = 30000)]
 ```
 
 ## Custom Reporters

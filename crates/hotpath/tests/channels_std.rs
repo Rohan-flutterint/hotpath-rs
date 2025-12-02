@@ -174,7 +174,7 @@ pub mod tests {
 
     #[test]
     fn test_data_endpoints() {
-        use hotpath::channels::ChannelsJson;
+        use hotpath::json::ChannelsJson;
         use std::{thread::sleep, time::Duration};
 
         // Spawn example process

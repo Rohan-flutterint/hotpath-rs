@@ -181,12 +181,12 @@ pub mod tests {
             "Actor 1",
             "Actor 1-2",
             "Actor 1-3",
-            "examples/iter_tokio.rs:38",
-            "examples/iter_tokio.rs:38-2",
-            "examples/iter_tokio.rs:38-3",
-            "examples/iter_tokio.rs:53",
-            "examples/iter_tokio.rs:53-2",
-            "examples/iter_tokio.rs:53-3",
+            "examples/iter_tokio.rs:34",
+            "examples/iter_tokio.rs:34-2",
+            "examples/iter_tokio.rs:34-3",
+            "examples/iter_tokio.rs:46",
+            "examples/iter_tokio.rs:46-2",
+            "examples/iter_tokio.rs:46-3",
         ];
 
         for expected in all_expected {
@@ -232,7 +232,7 @@ pub mod tests {
 
     #[test]
     fn test_data_endpoints() {
-        use hotpath::channels::ChannelsJson;
+        use hotpath::json::ChannelsJson;
         use std::{thread::sleep, time::Duration};
 
         // Spawn example process

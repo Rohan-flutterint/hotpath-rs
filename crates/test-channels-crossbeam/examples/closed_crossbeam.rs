@@ -1,19 +1,23 @@
 #[allow(unused_mut)]
 fn main() {
-    #[cfg(feature = "hotpath")]
     let _channels_guard = hotpath::channels::ChannelsGuard::new();
 
-    let (tx1, rx1) = crossbeam_channel::bounded::<i32>(5);
-    #[cfg(feature = "hotpath")]
-    let (tx1, rx1) = hotpath::channel!((tx1, rx1), label = "closed-sender", capacity = 5);
+    let (tx1, rx1) = hotpath::channel!(
+        crossbeam_channel::bounded::<i32>(5),
+        label = "closed-sender",
+        capacity = 5
+    );
 
-    let (tx2, rx2) = crossbeam_channel::bounded::<i32>(5);
-    #[cfg(feature = "hotpath")]
-    let (tx2, rx2) = hotpath::channel!((tx2, rx2), label = "closed-receiver", capacity = 5);
+    let (tx2, rx2) = hotpath::channel!(
+        crossbeam_channel::bounded::<i32>(5),
+        label = "closed-receiver",
+        capacity = 5
+    );
 
-    let (tx3, rx3) = crossbeam_channel::unbounded::<i32>();
-    #[cfg(feature = "hotpath")]
-    let (tx3, rx3) = hotpath::channel!((tx3, rx3), label = "closed-unbounded");
+    let (tx3, rx3) = hotpath::channel!(
+        crossbeam_channel::unbounded::<i32>(),
+        label = "closed-unbounded"
+    );
 
     drop(tx1);
 
@@ -43,7 +47,6 @@ fn main() {
 
     std::thread::sleep(std::time::Duration::from_millis(100));
 
-    #[cfg(feature = "hotpath")]
     drop(_channels_guard);
 
     println!("\nExample completed!");

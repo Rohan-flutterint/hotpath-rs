@@ -10,21 +10,23 @@ async fn main() {
         name: "Actor 1".to_string(),
     };
 
-    #[cfg(feature = "hotpath")]
     let _channels_guard = hotpath::channels::ChannelsGuard::new();
 
-    let (txa, mut _rxa) = tokio::sync::mpsc::unbounded_channel::<i32>();
+    let (txa, _rxa) = hotpath::channel!(
+        tokio::sync::mpsc::unbounded_channel::<i32>(),
+        log = true,
+        label = _actor1.name
+    );
 
-    #[cfg(feature = "hotpath")]
-    let (txa, _rxa) = hotpath::channel!((txa, _rxa), log = true, label = _actor1.name);
+    let (txb, mut rxb) = hotpath::channel!(
+        tokio::sync::mpsc::channel::<i32>(10),
+        label = "bounded-channel"
+    );
 
-    let (txb, mut rxb) = tokio::sync::mpsc::channel::<i32>(10);
-    #[cfg(feature = "hotpath")]
-    let (txb, mut rxb) = hotpath::channel!((txb, rxb), label = "bounded-channel");
-
-    let (txc, rxc) = tokio::sync::oneshot::channel::<String>();
-    #[cfg(feature = "hotpath")]
-    let (txc, rxc) = hotpath::channel!((txc, rxc), label = "hello-there");
+    let (txc, rxc) = hotpath::channel!(
+        tokio::sync::oneshot::channel::<String>(),
+        label = "hello-there"
+    );
 
     let sender_handle = tokio::spawn(async move {
         for i in 1..=3 {
@@ -58,7 +60,6 @@ async fn main() {
         .await
         .expect("Oneshot receiver task failed");
 
-    #[cfg(feature = "hotpath")]
     drop(_channels_guard);
 
     while let Some(msg) = rxb.recv().await {

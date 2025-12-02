@@ -4,7 +4,7 @@ struct Calculator {
     value: u64,
 }
 
-#[cfg_attr(feature = "hotpath", hotpath::measure_all)]
+#[hotpath::measure_all]
 impl Calculator {
     fn new(value: u64) -> Self {
         let vec = vec![1, 2, 3];
@@ -51,7 +51,7 @@ impl Calculator {
 }
 
 #[tokio::main(flavor = "current_thread")]
-#[cfg_attr(feature = "hotpath", hotpath::main)]
+#[hotpath::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for i in 1..=50 {
         let mut calc = Calculator::new(100);

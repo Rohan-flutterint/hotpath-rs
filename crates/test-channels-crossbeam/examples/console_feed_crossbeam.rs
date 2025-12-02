@@ -3,7 +3,6 @@ use std::time::Duration;
 
 #[allow(unused_mut)]
 fn main() {
-    #[cfg(feature = "hotpath")]
     let _channels_guard = hotpath::channels::ChannelsGuard::new();
 
     println!("Open the TUI console to watch live updates!");
@@ -11,72 +10,61 @@ fn main() {
     thread::sleep(Duration::from_secs(2));
 
     // Channel 1: Fast data stream - unbounded, rapid messages
-    let (tx_fast, rx_fast) = crossbeam_channel::unbounded::<String>();
-    #[cfg(feature = "hotpath")]
-    let (tx_fast, rx_fast) =
-        hotpath::channel!((tx_fast, rx_fast), label = "fast-stream", log = true);
+    let (tx_fast, rx_fast) = hotpath::channel!(
+        crossbeam_channel::unbounded::<String>(),
+        label = "fast-stream",
+        log = true
+    );
 
     // Channel 2: Slow consumer - bounded(5), will back up!
-    let (tx_slow, rx_slow) = crossbeam_channel::bounded::<String>(5);
-    #[cfg(feature = "hotpath")]
     let (tx_slow, rx_slow) = hotpath::channel!(
-        (tx_slow, rx_slow),
+        crossbeam_channel::bounded::<String>(5),
         label = "slow-consumer",
         capacity = 5,
         log = true
     );
 
     // Channel 3: Burst traffic - bounded(10), bursts every 3 seconds
-    let (tx_burst, rx_burst) = crossbeam_channel::bounded::<u64>(10);
-    #[cfg(feature = "hotpath")]
     let (tx_burst, rx_burst) = hotpath::channel!(
-        (tx_burst, rx_burst),
+        crossbeam_channel::bounded::<u64>(10),
         label = "burst-traffic",
         capacity = 10,
         log = true
     );
 
     // Channel 4: Gradual flow - bounded(20), increasing rate
-    let (tx_gradual, rx_gradual) = crossbeam_channel::bounded::<f64>(20);
-    #[cfg(feature = "hotpath")]
     let (tx_gradual, rx_gradual) = hotpath::channel!(
-        (tx_gradual, rx_gradual),
+        crossbeam_channel::bounded::<f64>(20),
         label = "gradual-flow",
         capacity = 20,
         log = true
     );
 
     // Channel 5: Dropped early - unbounded, producer dies at 10s
-    let (tx_drop_early, rx_drop_early) = crossbeam_channel::unbounded::<bool>();
-    #[cfg(feature = "hotpath")]
     let (tx_drop_early, rx_drop_early) = hotpath::channel!(
-        (tx_drop_early, rx_drop_early),
+        crossbeam_channel::unbounded::<bool>(),
         label = "dropped-early",
         log = true
     );
 
     // Channel 6: Consumer dies - bounded(8), consumer stops at 15s
-    let (tx_consumer_dies, rx_consumer_dies) = crossbeam_channel::bounded::<Vec<u8>>(8);
-    #[cfg(feature = "hotpath")]
     let (tx_consumer_dies, rx_consumer_dies) = hotpath::channel!(
-        (tx_consumer_dies, rx_consumer_dies),
+        crossbeam_channel::bounded::<Vec<u8>>(8),
         label = "consumer-dies",
         capacity = 8,
         log = true
     );
 
     // Channel 7: Steady stream - unbounded, consistent 500ms rate
-    let (tx_steady, rx_steady) = crossbeam_channel::unbounded::<&str>();
-    #[cfg(feature = "hotpath")]
-    let (tx_steady, rx_steady) =
-        hotpath::channel!((tx_steady, rx_steady), label = "steady-stream", log = true);
+    let (tx_steady, rx_steady) = hotpath::channel!(
+        crossbeam_channel::unbounded::<&str>(),
+        label = "steady-stream",
+        log = true
+    );
 
     println!("Creating 3 bounded iter channels...");
     for i in 0..3 {
-        let (tx, rx) = crossbeam_channel::bounded::<u32>(5);
-
-        #[cfg(feature = "hotpath")]
-        let (tx, rx) = hotpath::channel!((tx, rx), capacity = 5);
+        let (tx, rx) = hotpath::channel!(crossbeam_channel::bounded::<u32>(5), capacity = 5);
 
         thread::spawn(move || {
             for j in 0..5 {

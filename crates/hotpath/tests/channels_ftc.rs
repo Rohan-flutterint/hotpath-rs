@@ -183,9 +183,9 @@ pub mod tests {
             "bounded",
             "bounded-2",
             "bounded-3",
-            "examples/iter_ftc.rs:58",
-            "examples/iter_ftc.rs:58-2",
-            "examples/iter_ftc.rs:58-3",
+            "examples/iter_ftc.rs:55",
+            "examples/iter_ftc.rs:55-2",
+            "examples/iter_ftc.rs:55-3",
         ];
 
         for expected in all_expected {
@@ -231,7 +231,7 @@ pub mod tests {
 
     #[test]
     fn test_data_endpoints() {
-        use hotpath::channels::ChannelsJson;
+        use hotpath::json::ChannelsJson;
         use std::{thread::sleep, time::Duration};
 
         // Spawn example process

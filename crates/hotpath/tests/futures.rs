@@ -26,17 +26,9 @@ pub mod tests {
         let stdout = String::from_utf8_lossy(&output.stdout);
 
         let all_expected = [
-            "=== Future Instrumentation Demo ===",
-            "Without log = true",
-            "With log = true",
-            "Future was dropped without being awaited",
-            "Using #[future_fn] attribute macro",
-            "=== Demo Complete ===",
-            "=== Future Statistics",
-            "Futures:",
-            "Future",
-            "Calls",
-            "Polls",
+            "| basic_futures::attributed_no_log   | 2     | 4     |",
+            "| basic_futures::attributed_with_log | 2     | 4     |",
+            "| examples/basic_futures.rs:47       | 1     | 1     |",
         ];
 
         for expected in all_expected {
@@ -83,10 +75,16 @@ pub mod tests {
             stdout
         );
 
+        // Check for future locations in the output (file:line format)
+        assert!(
+            stdout.contains("basic_futures.rs:"),
+            "Expected 'basic_futures.rs:' file location in output.\nOutput:\n{}",
+            stdout
+        );
+
         // Check that aggregation shows correct call counts and polls
         // attributed_no_log and attributed_with_log are each called 2 times
         // Each call has 2 polls, so total is 4 polls
-        // The table should show "| 2     | 4     |" for call count and polls
         assert!(
             stdout.contains("| 2     | 4"),
             "Expected aggregated call count of 2 and poll count of 4.\nOutput:\n{}",

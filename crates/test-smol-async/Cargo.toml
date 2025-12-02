@@ -13,7 +13,3 @@ default = []
 hotpath = ["hotpath/hotpath"]
 hotpath-alloc = ["hotpath/hotpath-alloc"]
 hotpath-off = ["hotpath/hotpath-off"]
-
-[[example]]
-name = "basic_smol"
-path = "examples/basic_smol.rs"

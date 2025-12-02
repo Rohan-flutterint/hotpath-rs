@@ -5,20 +5,23 @@ use std::time::Duration;
 #[allow(unused_mut)]
 fn main() {
     smol::block_on(async {
-        #[cfg(feature = "hotpath")]
         let _channels_guard = hotpath::channels::ChannelsGuard::new();
 
-        let (txa, mut rxa) = futures_channel::mpsc::unbounded::<i32>();
-        #[cfg(feature = "hotpath")]
-        let (txa, mut rxa) = hotpath::channel!((txa, rxa), label = "unbounded");
+        let (txa, mut rxa) = hotpath::channel!(
+            futures_channel::mpsc::unbounded::<i32>(),
+            label = "unbounded"
+        );
 
-        let (mut txb, mut rxb) = futures_channel::mpsc::channel::<i32>(10);
-        #[cfg(feature = "hotpath")]
-        let (mut txb, mut rxb) = hotpath::channel!((txb, rxb), label = "bounded", capacity = 10);
+        let (mut txb, mut rxb) = hotpath::channel!(
+            futures_channel::mpsc::channel::<i32>(10),
+            label = "bounded",
+            capacity = 10
+        );
 
-        let (txc, rxc) = futures_channel::oneshot::channel::<String>();
-        #[cfg(feature = "hotpath")]
-        let (txc, rxc) = hotpath::channel!((txc, rxc), label = "oneshot");
+        let (txc, rxc) = hotpath::channel!(
+            futures_channel::oneshot::channel::<String>(),
+            label = "oneshot"
+        );
 
         println!("[Unbounded] Sending 3 messages...");
         for i in 1..=3 {

@@ -5,22 +5,21 @@ use std::time::Duration;
 #[allow(unused_mut)]
 fn main() {
     smol::block_on(async {
-        #[cfg(feature = "hotpath")]
         let _streams_guard = hotpath::streams::StreamsGuard::new();
 
         // Example 1: Basic stream from iterator
-        let stream = stream::iter(1..=5);
-        #[cfg(feature = "hotpath")]
-        let stream = hotpath::stream!(stream, label = "number-stream");
+        let stream = hotpath::stream!(stream::iter(1..=5), label = "number-stream");
 
         println!("[Stream 1] Collecting numbers...");
         let numbers: Vec<i32> = stream.collect().await;
         println!("[Stream 1] Collected: {:?}", numbers);
 
         // Example 2: Stream with logging enabled
-        let stream2 = stream::iter(vec!["hello", "world", "from", "streams"]);
-        #[cfg(feature = "hotpath")]
-        let stream2 = hotpath::stream!(stream2, label = "text-stream", log = true);
+        let stream2 = hotpath::stream!(
+            stream::iter(vec!["hello", "world", "from", "streams"]),
+            label = "text-stream",
+            log = true
+        );
 
         println!("\n[Stream 2] Processing text...");
         stream2
@@ -31,9 +30,7 @@ fn main() {
             .await;
 
         // Example 3: Infinite stream (take first 3)
-        let stream3 = stream::repeat(42).take(3);
-        #[cfg(feature = "hotpath")]
-        let stream3 = hotpath::stream!(stream3, label = "repeat-stream");
+        let stream3 = hotpath::stream!(stream::repeat(42).take(3), label = "repeat-stream");
 
         println!("\n[Stream 3] Taking from infinite stream...");
         let repeated: Vec<i32> = stream3.collect().await;

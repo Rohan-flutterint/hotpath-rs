@@ -1,3 +1,4 @@
+use crate::json::Route;
 use regex::Regex;
 use std::sync::LazyLock;
 
@@ -12,109 +13,6 @@ static RE_FUNCTION_LOGS_TIMING: LazyLock<Regex> =
 static RE_FUNCTION_LOGS_ALLOC: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^/functions_alloc/([^/]+)/logs$").unwrap());
 
-/// HTTP routes for the hotpath metrics server.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Route {
-    /// GET /functions_timing - Returns timing metrics for all functions
-    FunctionsTiming,
-    /// GET /functions_alloc - Returns allocation metrics for all functions
-    FunctionsAlloc,
-    /// GET /channels - Returns all channel statistics
-    Channels,
-    /// GET /streams - Returns all stream statistics
-    Streams,
-    /// GET /futures - Returns all future statistics
-    Futures,
-    /// GET /threads - Returns thread metrics
-    Threads,
-    /// GET /functions_timing/{base64_name}/logs - Returns timing logs for a function
-    FunctionTimingLogs { function_name: String },
-    /// GET /functions_alloc/{base64_name}/logs - Returns allocation logs for a function
-    FunctionAllocLogs { function_name: String },
-    /// GET /channels/{id}/logs - Returns logs for a specific channel
-    ChannelLogs { channel_id: u64 },
-    /// GET /streams/{id}/logs - Returns logs for a specific stream
-    StreamLogs { stream_id: u64 },
-    /// GET /futures/{id}/calls - Returns calls for a specific future
-    FutureCalls { future_id: u64 },
-}
-
-impl Route {
-    /// Returns the path portion of the URL for this route.
-    pub fn to_path(&self) -> String {
-        use base64::Engine;
-        match self {
-            Route::FunctionsTiming => "/functions_timing".to_string(),
-            Route::FunctionsAlloc => "/functions_alloc".to_string(),
-            Route::Channels => "/channels".to_string(),
-            Route::Streams => "/streams".to_string(),
-            Route::Futures => "/futures".to_string(),
-            Route::Threads => "/threads".to_string(),
-            Route::FunctionTimingLogs { function_name } => {
-                let encoded =
-                    base64::engine::general_purpose::STANDARD.encode(function_name.as_bytes());
-                format!("/functions_timing/{}/logs", encoded)
-            }
-            Route::FunctionAllocLogs { function_name } => {
-                let encoded =
-                    base64::engine::general_purpose::STANDARD.encode(function_name.as_bytes());
-                format!("/functions_alloc/{}/logs", encoded)
-            }
-            Route::ChannelLogs { channel_id } => format!("/channels/{}/logs", channel_id),
-            Route::StreamLogs { stream_id } => format!("/streams/{}/logs", stream_id),
-            Route::FutureCalls { future_id } => format!("/futures/{}/calls", future_id),
-        }
-    }
-
-    /// Returns the full URL for this route with the given port.
-    pub fn to_url(&self, port: u16) -> String {
-        format!("http://localhost:{}{}", port, self.to_path())
-    }
-
-    /// Parses a URL path into a Route using regex patterns.
-    /// Returns None if the path doesn't match any known route.
-    pub fn from_path(path: &str) -> Option<Self> {
-        let path = path.split('?').next().unwrap_or(path);
-
-        match path {
-            "/functions_timing" => return Some(Route::FunctionsTiming),
-            "/functions_alloc" => return Some(Route::FunctionsAlloc),
-            "/channels" => return Some(Route::Channels),
-            "/streams" => return Some(Route::Streams),
-            "/futures" => return Some(Route::Futures),
-            "/threads" => return Some(Route::Threads),
-            _ => {}
-        }
-
-        if let Some(caps) = RE_FUNCTION_LOGS_TIMING.captures(path) {
-            let function_name = base64_decode(&caps[1]).ok()?;
-            return Some(Route::FunctionTimingLogs { function_name });
-        }
-
-        if let Some(caps) = RE_FUNCTION_LOGS_ALLOC.captures(path) {
-            let function_name = base64_decode(&caps[1]).ok()?;
-            return Some(Route::FunctionAllocLogs { function_name });
-        }
-
-        if let Some(caps) = RE_CHANNEL_LOGS.captures(path) {
-            let channel_id = caps[1].parse().ok()?;
-            return Some(Route::ChannelLogs { channel_id });
-        }
-
-        if let Some(caps) = RE_STREAM_LOGS.captures(path) {
-            let stream_id = caps[1].parse().ok()?;
-            return Some(Route::StreamLogs { stream_id });
-        }
-
-        if let Some(caps) = RE_FUTURE_CALLS.captures(path) {
-            let future_id = caps[1].parse().ok()?;
-            return Some(Route::FutureCalls { future_id });
-        }
-
-        None
-    }
-}
-
 fn base64_decode(encoded: &str) -> Result<String, String> {
     use base64::Engine;
     let bytes = base64::engine::general_purpose::STANDARD
@@ -123,10 +21,53 @@ fn base64_decode(encoded: &str) -> Result<String, String> {
     String::from_utf8(bytes).map_err(|e| e.to_string())
 }
 
+/// Parses a URL path into a Route using regex patterns.
+/// Returns None if the path doesn't match any known route.
+pub fn route_from_path(path: &str) -> Option<Route> {
+    let path = path.split('?').next().unwrap_or(path);
+
+    match path {
+        "/functions_timing" => return Some(Route::FunctionsTiming),
+        "/functions_alloc" => return Some(Route::FunctionsAlloc),
+        "/channels" => return Some(Route::Channels),
+        "/streams" => return Some(Route::Streams),
+        "/futures" => return Some(Route::Futures),
+        "/threads" => return Some(Route::Threads),
+        _ => {}
+    }
+
+    if let Some(caps) = RE_FUNCTION_LOGS_TIMING.captures(path) {
+        let function_name = base64_decode(&caps[1]).ok()?;
+        return Some(Route::FunctionTimingLogs { function_name });
+    }
+
+    if let Some(caps) = RE_FUNCTION_LOGS_ALLOC.captures(path) {
+        let function_name = base64_decode(&caps[1]).ok()?;
+        return Some(Route::FunctionAllocLogs { function_name });
+    }
+
+    if let Some(caps) = RE_CHANNEL_LOGS.captures(path) {
+        let channel_id = caps[1].parse().ok()?;
+        return Some(Route::ChannelLogs { channel_id });
+    }
+
+    if let Some(caps) = RE_STREAM_LOGS.captures(path) {
+        let stream_id = caps[1].parse().ok()?;
+        return Some(Route::StreamLogs { stream_id });
+    }
+
+    if let Some(caps) = RE_FUTURE_CALLS.captures(path) {
+        let future_id = caps[1].parse().ok()?;
+        return Some(Route::FutureCalls { future_id });
+    }
+
+    None
+}
+
 // Server implementation is only compiled when hotpath feature is enabled
 #[cfg(feature = "hotpath")]
 mod server {
-    use super::Route;
+    use super::{route_from_path, Route};
     use crate::channels::{get_channel_logs, get_channels_json};
     use crate::futures::{get_future_calls, get_futures_json};
     use crate::output::FunctionsJson;
@@ -182,7 +123,7 @@ mod server {
     fn handle_request(request: Request) {
         let path = request.url();
 
-        match Route::from_path(path) {
+        match route_from_path(path) {
             Some(Route::FunctionsTiming) => {
                 let metrics = get_functions_timing_json();
                 respond_json(request, &metrics);

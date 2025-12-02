@@ -5,11 +5,11 @@ edition = "2021"
 publish = false
 
 [dependencies]
-hotpath = { workspace = true, optional = true, features = ["crossbeam"] }
+hotpath = { workspace = true, features = ["crossbeam"] }
 crossbeam-channel = "0.5"
 
 [features]
-hotpath = ["dep:hotpath", "hotpath/hotpath"]
+hotpath = ["hotpath/hotpath"]
 
 [dev-dependencies]
 ureq = { version = "2", features = ["json"] }

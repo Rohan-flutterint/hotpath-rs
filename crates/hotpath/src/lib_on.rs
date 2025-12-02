@@ -5,20 +5,13 @@ use crate::output::{FunctionLogEntry, FunctionLogsJson, FunctionsJson, MetricsPr
 pub use cfg_if::cfg_if;
 pub use hotpath_macros::{future_fn, main, measure, measure_all, skip};
 
-// Channels module for instrumenting channels
 pub mod channels;
-
-// Streams module for instrumenting streams
-pub mod streams;
-
-// Futures module for instrumenting futures
 pub mod futures;
-
-// Threads module for monitoring OS thread metrics
+pub mod streams;
 #[cfg(feature = "threads")]
 pub mod threads;
 
-pub use channels::{Instrument, InstrumentLog};
+pub use channels::{InstrumentChannel, InstrumentChannelLog};
 pub use futures::{InstrumentFuture, InstrumentFutureLog};
 pub use streams::{InstrumentStream, InstrumentStreamLog};
 
@@ -76,7 +69,7 @@ impl MeasurementGuard {
     pub fn build(measurement_name: &'static str, wrapper: bool, _is_async: bool) -> Self {
         #[allow(clippy::needless_bool)]
         let unsupported_async = if wrapper {
-            // top wrapper functions are not inside a runtime
+            // Top wrapper functions are not inside a runtime
             false
         } else {
             cfg_if::cfg_if! {
@@ -127,7 +120,7 @@ impl MeasurementGuardWithLog {
     }
 }
 
-/// Measure a sync function and log its result.
+/// Measure a sync function and log its return value.
 #[doc(hidden)]
 #[inline]
 pub fn measure_with_log<T: std::fmt::Debug, F: FnOnce() -> T>(
@@ -142,7 +135,7 @@ pub fn measure_with_log<T: std::fmt::Debug, F: FnOnce() -> T>(
     result
 }
 
-/// Measure an async function and log its result.
+/// Measure an async function and log its return value.
 #[doc(hidden)]
 pub async fn measure_with_log_async<T: std::fmt::Debug, F, Fut>(name: &'static str, f: F) -> T
 where
@@ -155,6 +148,7 @@ where
     result
 }
 
+pub use crate::Format;
 /// Output format for profiling reports.
 ///
 /// This enum specifies how profiling results should be displayed when the program exits.
@@ -162,29 +156,6 @@ where
 /// # Variants
 ///
 /// * `Table` - Human-readable table format (default)
-/// * `Json` - Compact JSON format (single line)
-/// * `JsonPretty` - Pretty-printed JSON format with indentation
-///
-/// # Examples
-///
-/// ```rust
-/// # #[cfg(feature = "hotpath")]
-/// # {
-/// use hotpath::{GuardBuilder, Format};
-///
-/// let _guard = GuardBuilder::new("main")
-///     .format(Format::JsonPretty)
-///     .build();
-/// # }
-/// ```
-#[derive(Clone, Copy, Debug, Default)]
-pub enum Format {
-    #[default]
-    Table,
-    Json,
-    JsonPretty,
-}
-
 use crossbeam_channel::{bounded, select, unbounded};
 use std::collections::HashMap;
 use std::thread;
@@ -210,11 +181,9 @@ use std::time::Instant;
 /// # Examples
 ///
 /// ```rust
-/// # #[cfg(feature = "hotpath")]
 /// # {
 /// use std::time::Duration;
 ///
-/// #[cfg(feature = "hotpath")]
 /// hotpath::measure_block!("data_processing", {
 ///     // Your code here
 ///     std::thread::sleep(Duration::from_millis(10));
@@ -226,20 +195,11 @@ use std::time::Instant;
 ///
 /// * [`measure`](hotpath_macros::measure) - Attribute macro for instrumenting functions
 /// * [`main`](hotpath_macros::main) - Attribute macro that initializes profiling
-#[cfg(feature = "hotpath")]
 #[macro_export]
 macro_rules! measure_block {
     ($label:expr, $expr:expr) => {{
         let _guard = hotpath::MeasurementGuard::new($label, false, false);
 
-        $expr
-    }};
-}
-
-#[cfg(not(feature = "hotpath"))]
-#[macro_export]
-macro_rules! measure_block {
-    ($label:expr, $expr:expr) => {{
         $expr
     }};
 }

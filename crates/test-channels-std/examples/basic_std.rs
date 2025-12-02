@@ -11,16 +11,18 @@ fn main() {
         name: "Actor 1".to_string(),
     };
 
-    #[cfg(feature = "hotpath")]
     let _channels_guard = hotpath::channels::ChannelsGuard::new();
 
-    let (txa, _rxa) = std::sync::mpsc::channel::<i32>();
-    #[cfg(feature = "hotpath")]
-    let (txa, _rxa) = hotpath::channel!((txa, _rxa), label = "unbounded-channel");
+    let (txa, _rxa) = hotpath::channel!(
+        std::sync::mpsc::channel::<i32>(),
+        label = "unbounded-channel"
+    );
 
-    let (txb, rxb) = std::sync::mpsc::sync_channel::<i32>(10);
-    #[cfg(feature = "hotpath")]
-    let (txb, rxb) = hotpath::channel!((txb, rxb), capacity = 10, label = _actor1.name);
+    let (txb, rxb) = hotpath::channel!(
+        std::sync::mpsc::sync_channel::<i32>(10),
+        capacity = 10,
+        label = _actor1.name
+    );
 
     let sender_handle = thread::spawn(move || {
         for i in 1..=3 {

@@ -3,16 +3,15 @@ use std::time::Duration;
 
 #[allow(unused_mut)]
 fn main() {
-    #[cfg(feature = "hotpath")]
     let _channels_guard = hotpath::channels::ChannelsGuard::new();
 
-    let (txa, rxa) = std::sync::mpsc::channel::<i32>();
-    #[cfg(feature = "hotpath")]
-    let (txa, rxa) = hotpath::channel!((txa, rxa), label = "unbounded");
+    let (txa, rxa) = hotpath::channel!(std::sync::mpsc::channel::<i32>(), label = "unbounded");
 
-    let (txb, rxb) = std::sync::mpsc::sync_channel::<i32>(10);
-    #[cfg(feature = "hotpath")]
-    let (txb, rxb) = hotpath::channel!((txb, rxb), label = "bounded", capacity = 10);
+    let (txb, rxb) = hotpath::channel!(
+        std::sync::mpsc::sync_channel::<i32>(10),
+        label = "bounded",
+        capacity = 10
+    );
 
     println!("[Unbounded] Sending 3 messages...");
     for i in 1..=3 {

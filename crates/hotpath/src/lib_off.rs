@@ -1,4 +1,3 @@
-pub use cfg_if::cfg_if;
 pub use hotpath_macros::{main, measure, measure_all, skip};
 
 #[macro_export]
@@ -8,7 +7,6 @@ macro_rules! measure_block {
     }};
 }
 
-/// No-op channel macro when hotpath is disabled
 #[macro_export]
 macro_rules! channel {
     ($expr:expr) => {
@@ -61,7 +59,6 @@ macro_rules! channel {
     };
 }
 
-/// No-op stream macro when hotpath is disabled
 #[macro_export]
 macro_rules! stream {
     ($expr:expr) => {
@@ -81,13 +78,17 @@ macro_rules! stream {
     };
 }
 
-#[derive(Clone, Copy, Debug, Default)]
-pub enum Format {
-    #[default]
-    Table,
-    Json,
-    JsonPretty,
+#[macro_export]
+macro_rules! future {
+    ($fut:expr) => {
+        $fut
+    };
+    ($fut:expr, log = true) => {
+        $fut
+    };
 }
+
+pub use crate::Format;
 
 pub struct MeasurementGuard {}
 
@@ -149,8 +150,16 @@ impl HotPath {
     }
 }
 
+pub trait Reporter: Send + Sync {
+    fn report(
+        &self,
+        metrics_provider: &dyn MetricsProvider<'_>,
+    ) -> Result<(), Box<dyn std::error::Error>>;
+}
+
+pub trait MetricsProvider<'a> {}
+
 pub struct GuardBuilder {}
-use crate::Reporter;
 
 impl GuardBuilder {
     pub fn new(_caller_name: impl Into<String>) -> Self {
@@ -184,3 +193,126 @@ impl GuardBuilder {
 
 #[derive(Debug, Clone)]
 pub struct FunctionStats {}
+
+pub mod channels {
+    use super::Format;
+
+    pub struct ChannelsGuardBuilder;
+
+    impl ChannelsGuardBuilder {
+        pub fn new() -> Self {
+            Self
+        }
+        pub fn format(self, _format: Format) -> Self {
+            self
+        }
+        pub fn build(self) -> ChannelsGuard {
+            ChannelsGuard
+        }
+    }
+
+    impl Default for ChannelsGuardBuilder {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
+    pub struct ChannelsGuard;
+
+    impl ChannelsGuard {
+        pub fn new() -> Self {
+            Self
+        }
+        pub fn format(self, _format: Format) -> Self {
+            self
+        }
+    }
+
+    impl Default for ChannelsGuard {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+}
+
+pub mod streams {
+    use super::Format;
+
+    pub struct StreamsGuardBuilder;
+
+    impl StreamsGuardBuilder {
+        pub fn new() -> Self {
+            Self
+        }
+        pub fn format(self, _format: Format) -> Self {
+            self
+        }
+        pub fn build(self) -> StreamsGuard {
+            StreamsGuard
+        }
+    }
+
+    impl Default for StreamsGuardBuilder {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
+    pub struct StreamsGuard;
+
+    impl StreamsGuard {
+        pub fn new() -> Self {
+            Self
+        }
+        pub fn format(self, _format: Format) -> Self {
+            self
+        }
+    }
+
+    impl Default for StreamsGuard {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+}
+
+pub mod futures {
+    use super::Format;
+
+    pub struct FuturesGuardBuilder;
+
+    impl FuturesGuardBuilder {
+        pub fn new() -> Self {
+            Self
+        }
+        pub fn format(self, _format: Format) -> Self {
+            self
+        }
+        pub fn build(self) -> FuturesGuard {
+            FuturesGuard
+        }
+    }
+
+    impl Default for FuturesGuardBuilder {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
+    pub struct FuturesGuard;
+
+    impl FuturesGuard {
+        pub fn new() -> Self {
+            Self
+        }
+        pub fn format(self, _format: Format) -> Self {
+            self
+        }
+    }
+
+    impl Default for FuturesGuard {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+}

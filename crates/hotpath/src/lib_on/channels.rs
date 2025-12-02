@@ -1,5 +1,4 @@
 use crossbeam_channel::{unbounded, Sender as CbSender};
-use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, OnceLock, RwLock};
@@ -15,144 +14,16 @@ pub use guard::{ChannelsGuard, ChannelsGuardBuilder};
 
 mod wrapper;
 
-/// A single log entry for a message sent or received.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LogEntry {
-    pub index: u64,
-    pub timestamp: u64,
-    pub message: Option<String>,
-    pub tid: Option<u64>,
-}
+// Re-export JSON types from json module
+pub use crate::json::{
+    ChannelLogs, ChannelState, ChannelType, ChannelsJson, LogEntry, SerializableChannelStats,
+};
 
-impl LogEntry {
-    pub(crate) fn new(
-        index: u64,
-        timestamp: Instant,
-        message: Option<String>,
-        tid: Option<u64>,
-    ) -> Self {
-        let start_time = START_TIME.get().copied().unwrap_or(timestamp);
-        let timestamp_nanos = timestamp.duration_since(start_time).as_nanos() as u64;
-        Self {
-            index,
-            timestamp: timestamp_nanos,
-            message,
-            tid,
-        }
-    }
-}
+pub use crate::Format;
 
-/// Type of a channel.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ChannelType {
-    Bounded(usize),
-    Unbounded,
-    Oneshot,
-}
-
-impl std::fmt::Display for ChannelType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ChannelType::Bounded(size) => write!(f, "bounded[{}]", size),
-            ChannelType::Unbounded => write!(f, "unbounded"),
-            ChannelType::Oneshot => write!(f, "oneshot"),
-        }
-    }
-}
-
-impl Serialize for ChannelType {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(&self.to_string())
-    }
-}
-
-impl<'de> Deserialize<'de> for ChannelType {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-
-        match s.as_str() {
-            "unbounded" => Ok(ChannelType::Unbounded),
-            "oneshot" => Ok(ChannelType::Oneshot),
-            _ => {
-                // try: bounded[123]
-                if let Some(inner) = s.strip_prefix("bounded[").and_then(|x| x.strip_suffix(']')) {
-                    let size = inner
-                        .parse()
-                        .map_err(|_| serde::de::Error::custom("invalid bounded size"))?;
-                    Ok(ChannelType::Bounded(size))
-                } else {
-                    Err(serde::de::Error::custom("invalid channel type"))
-                }
-            }
-        }
-    }
-}
-
-/// Format of the output produced by ChannelsGuard on drop.
-#[derive(Clone, Copy, Debug, Default)]
-pub enum Format {
-    #[default]
-    Table,
-    Json,
-    JsonPretty,
-}
-
-/// State of a instrumented channel.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum ChannelState {
-    #[default]
-    Active,
-    Closed,
-    Full,
-    Notified,
-}
-
-impl std::fmt::Display for ChannelState {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.as_str())
-    }
-}
-
-impl ChannelState {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            ChannelState::Active => "active",
-            ChannelState::Closed => "closed",
-            ChannelState::Full => "full",
-            ChannelState::Notified => "notified",
-        }
-    }
-}
-
-impl Serialize for ChannelState {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(self.as_str())
-    }
-}
-
-impl<'de> Deserialize<'de> for ChannelState {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        match s.as_str() {
-            "active" => Ok(ChannelState::Active),
-            "closed" => Ok(ChannelState::Closed),
-            "full" => Ok(ChannelState::Full),
-            "notified" => Ok(ChannelState::Notified),
-            _ => Err(serde::de::Error::custom("invalid channel state")),
-        }
-    }
+pub(crate) fn timestamp_nanos(timestamp: Instant) -> u64 {
+    let start_time = START_TIME.get().copied().unwrap_or(timestamp);
+    timestamp.duration_since(start_time).as_nanos() as u64
 }
 
 /// Statistics for a single instrumented channel.
@@ -182,33 +53,6 @@ impl ChannelStats {
     pub fn queued_bytes(&self) -> u64 {
         self.queued() * self.type_size as u64
     }
-}
-
-/// Wrapper for channels-only JSON response
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ChannelsJson {
-    /// Current elapsed time since program start in nanoseconds
-    pub current_elapsed_ns: u64,
-    /// Channel statistics
-    pub channels: Vec<SerializableChannelStats>,
-}
-
-/// Serializable version of channel statistics for JSON responses.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SerializableChannelStats {
-    pub id: u64,
-    pub source: String,
-    pub label: String,
-    pub has_custom_label: bool,
-    pub channel_type: ChannelType,
-    pub state: ChannelState,
-    pub sent_count: u64,
-    pub received_count: u64,
-    pub queued: u64,
-    pub type_name: String,
-    pub type_size: usize,
-    pub queued_bytes: u64,
-    pub iter: u32,
 }
 
 impl From<&ChannelStats> for SerializableChannelStats {
@@ -382,7 +226,7 @@ pub(crate) fn init_channels_state() -> &'static ChannelStatsState {
                                 }
                                 channel_stats.sent_logs.push_back(LogEntry::new(
                                     channel_stats.sent_count,
-                                    timestamp,
+                                    timestamp_nanos(timestamp),
                                     log,
                                     None,
                                 ));
@@ -399,7 +243,7 @@ pub(crate) fn init_channels_state() -> &'static ChannelStatsState {
                                 }
                                 channel_stats.received_logs.push_back(LogEntry::new(
                                     channel_stats.received_count,
-                                    timestamp,
+                                    timestamp_nanos(timestamp),
                                     None,
                                     None,
                                 ));
@@ -490,7 +334,7 @@ pub fn format_bytes(bytes: u64) -> String {
 ///
 /// This trait is not intended for direct use. Use the `channel!` macro instead.
 #[doc(hidden)]
-pub trait Instrument {
+pub trait InstrumentChannel {
     type Output;
     fn instrument(
         self,
@@ -504,7 +348,7 @@ pub trait Instrument {
 ///
 /// This trait is not intended for direct use. Use the `channel!` macro with `log = true` instead.
 #[doc(hidden)]
-pub trait InstrumentLog {
+pub trait InstrumentChannelLog {
     type Output;
     fn instrument_log(
         self,
@@ -554,64 +398,84 @@ cfg_if::cfg_if! {
 macro_rules! channel {
     ($expr:expr) => {{
         const CHANNEL_ID: &'static str = concat!(file!(), ":", line!());
-        $crate::Instrument::instrument($expr, CHANNEL_ID, None, None)
+        $crate::InstrumentChannel::instrument($expr, CHANNEL_ID, None, None)
     }};
 
     ($expr:expr, label = $label:expr) => {{
         const CHANNEL_ID: &'static str = concat!(file!(), ":", line!());
-        $crate::Instrument::instrument($expr, CHANNEL_ID, Some($label.to_string()), None)
+        $crate::InstrumentChannel::instrument($expr, CHANNEL_ID, Some($label.to_string()), None)
     }};
 
     ($expr:expr, capacity = $capacity:expr) => {{
         const CHANNEL_ID: &'static str = concat!(file!(), ":", line!());
         const _: usize = $capacity;
-        $crate::Instrument::instrument($expr, CHANNEL_ID, None, Some($capacity))
+        $crate::InstrumentChannel::instrument($expr, CHANNEL_ID, None, Some($capacity))
     }};
 
     ($expr:expr, label = $label:expr, capacity = $capacity:expr) => {{
         const CHANNEL_ID: &'static str = concat!(file!(), ":", line!());
         const _: usize = $capacity;
-        $crate::Instrument::instrument($expr, CHANNEL_ID, Some($label.to_string()), Some($capacity))
+        $crate::InstrumentChannel::instrument(
+            $expr,
+            CHANNEL_ID,
+            Some($label.to_string()),
+            Some($capacity),
+        )
     }};
 
     ($expr:expr, capacity = $capacity:expr, label = $label:expr) => {{
         const CHANNEL_ID: &'static str = concat!(file!(), ":", line!());
         const _: usize = $capacity;
-        $crate::Instrument::instrument($expr, CHANNEL_ID, Some($label.to_string()), Some($capacity))
+        $crate::InstrumentChannel::instrument(
+            $expr,
+            CHANNEL_ID,
+            Some($label.to_string()),
+            Some($capacity),
+        )
     }};
 
     // Variants with log = true
     ($expr:expr, log = true) => {{
         const CHANNEL_ID: &'static str = concat!(file!(), ":", line!());
-        $crate::InstrumentLog::instrument_log($expr, CHANNEL_ID, None, None)
+        $crate::InstrumentChannelLog::instrument_log($expr, CHANNEL_ID, None, None)
     }};
 
     ($expr:expr, label = $label:expr, log = true) => {{
         const CHANNEL_ID: &'static str = concat!(file!(), ":", line!());
-        $crate::InstrumentLog::instrument_log($expr, CHANNEL_ID, Some($label.to_string()), None)
+        $crate::InstrumentChannelLog::instrument_log(
+            $expr,
+            CHANNEL_ID,
+            Some($label.to_string()),
+            None,
+        )
     }};
 
     ($expr:expr, log = true, label = $label:expr) => {{
         const CHANNEL_ID: &'static str = concat!(file!(), ":", line!());
-        $crate::InstrumentLog::instrument_log($expr, CHANNEL_ID, Some($label.to_string()), None)
+        $crate::InstrumentChannelLog::instrument_log(
+            $expr,
+            CHANNEL_ID,
+            Some($label.to_string()),
+            None,
+        )
     }};
 
     ($expr:expr, capacity = $capacity:expr, log = true) => {{
         const CHANNEL_ID: &'static str = concat!(file!(), ":", line!());
         const _: usize = $capacity;
-        $crate::InstrumentLog::instrument_log($expr, CHANNEL_ID, None, Some($capacity))
+        $crate::InstrumentChannelLog::instrument_log($expr, CHANNEL_ID, None, Some($capacity))
     }};
 
     ($expr:expr, log = true, capacity = $capacity:expr) => {{
         const CHANNEL_ID: &'static str = concat!(file!(), ":", line!());
         const _: usize = $capacity;
-        $crate::InstrumentLog::instrument_log($expr, CHANNEL_ID, None, Some($capacity))
+        $crate::InstrumentChannelLog::instrument_log($expr, CHANNEL_ID, None, Some($capacity))
     }};
 
     ($expr:expr, label = $label:expr, capacity = $capacity:expr, log = true) => {{
         const CHANNEL_ID: &'static str = concat!(file!(), ":", line!());
         const _: usize = $capacity;
-        $crate::InstrumentLog::instrument_log(
+        $crate::InstrumentChannelLog::instrument_log(
             $expr,
             CHANNEL_ID,
             Some($label.to_string()),
@@ -633,7 +497,7 @@ macro_rules! channel {
     ($expr:expr, capacity = $capacity:expr, label = $label:expr, log = true) => {{
         const CHANNEL_ID: &'static str = concat!(file!(), ":", line!());
         const _: usize = $capacity;
-        $crate::InstrumentLog::instrument_log(
+        $crate::InstrumentChannelLog::instrument_log(
             $expr,
             CHANNEL_ID,
             Some($label.to_string()),
@@ -724,14 +588,6 @@ pub fn get_channels_json() -> ChannelsJson {
         current_elapsed_ns,
         channels,
     }
-}
-
-/// Serializable log response containing sent and received logs for channels.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ChannelLogs {
-    pub id: String,
-    pub sent_logs: Vec<LogEntry>,
-    pub received_logs: Vec<LogEntry>,
 }
 
 pub fn get_channel_logs(channel_id: &str) -> Option<ChannelLogs> {

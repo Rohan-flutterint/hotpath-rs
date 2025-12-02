@@ -1,4 +1,4 @@
-#[cfg_attr(feature = "hotpath", hotpath::measure)]
+#[hotpath::measure]
 fn fibonacci(n: u64) -> u64 {
     let buffer = vec![0u8; 1024];
     std::hint::black_box(&buffer);
@@ -10,7 +10,7 @@ fn fibonacci(n: u64) -> u64 {
     }
 }
 
-#[cfg_attr(feature = "hotpath", hotpath::main)]
+#[hotpath::main]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     for n in [5, 8, 10, 12] {
         let result = fibonacci(n);

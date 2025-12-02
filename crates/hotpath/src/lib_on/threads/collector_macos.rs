@@ -137,7 +137,7 @@ unsafe fn get_thread_info(thread: thread_act_t, index: u64) -> Result<ThreadMetr
     let cpu_sys = thread_info_data.system_time.seconds as f64
         + (thread_info_data.system_time.microseconds as f64 / 1_000_000.0);
 
-    Ok(ThreadMetrics::new(
+    Ok(super::ThreadMetrics::new(
         os_tid,
         name,
         status,

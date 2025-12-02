@@ -5,7 +5,6 @@ use std::time::Duration;
 #[allow(unused_mut)]
 fn main() {
     smol::block_on(async {
-        #[cfg(feature = "hotpath")]
         let _channels_guard = hotpath::channels::ChannelsGuard::new();
 
         println!("Slow Consumer Example:");
@@ -14,10 +13,12 @@ fn main() {
         println!("- Consumer processes 1 message every 20ms");
         println!("- Queue will back up!\n");
 
-        let (mut tx, mut rx) = futures_channel::mpsc::channel::<i32>(10);
-        #[cfg(feature = "hotpath")]
-        let (mut tx, mut rx) =
-            hotpath::channel!((tx, rx), capacity = 10, label = "slow-consumer", log = true);
+        let (mut tx, mut rx) = hotpath::channel!(
+            futures_channel::mpsc::channel::<i32>(10),
+            capacity = 10,
+            label = "slow-consumer",
+            log = true
+        );
 
         // Producer: sends every 10ms
         let producer_handle = smol::spawn(async move {

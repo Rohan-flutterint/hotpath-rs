@@ -4,7 +4,7 @@ use hotpath::Reporter;
 
 /// Run with:
 /// cargo test -p test-tokio-async --example unit_test --features hotpath -- --nocapture --test-threads=1
-#[cfg_attr(feature = "hotpath", hotpath::measure)]
+#[hotpath::measure]
 fn sync_function(sleep: u64) {
     let vec1 = vec![1, 2, 3, 5, 6];
     std::hint::black_box(&vec1);
@@ -56,7 +56,6 @@ mod tests {
 
     #[test]
     fn test_sync_function() {
-        #[cfg(feature = "hotpath")]
         let _hotpath = hotpath::GuardBuilder::new("test_sync_function")
             .reporter(Box::new(UnitTestReporter))
             .build();

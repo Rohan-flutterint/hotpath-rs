@@ -5,10 +5,9 @@ use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tokio::time::sleep;
 
-#[cfg(feature = "hotpath")]
 use hotpath::future;
 
-#[cfg_attr(feature = "hotpath", hotpath::measure(log = true))]
+#[hotpath::measure(log = true)]
 fn fast_sync_allocator() -> Vec<Vec<u64>> {
     let mut rng = rand::thread_rng();
     let num_arrays = rng.gen_range(1..=10);
@@ -25,7 +24,7 @@ fn fast_sync_allocator() -> Vec<Vec<u64>> {
     arrays
 }
 
-#[cfg_attr(feature = "hotpath", hotpath::measure)]
+#[hotpath::measure]
 fn medium_sync_allocator() -> Vec<Vec<u64>> {
     let mut rng = rand::thread_rng();
     let num_arrays = rng.gen_range(1..=10);
@@ -42,7 +41,7 @@ fn medium_sync_allocator() -> Vec<Vec<u64>> {
     arrays
 }
 
-#[cfg_attr(feature = "hotpath", hotpath::measure)]
+#[hotpath::measure]
 fn slow_sync_allocator() -> Vec<Vec<u64>> {
     let mut rng = rand::thread_rng();
     let num_arrays = rng.gen_range(1..=10);
@@ -60,7 +59,7 @@ fn slow_sync_allocator() -> Vec<Vec<u64>> {
 }
 
 /// Async function instrumented with #[future_fn] attribute - tracks future lifecycle
-#[cfg_attr(feature = "hotpath", hotpath::future_fn)]
+#[hotpath::future_fn]
 async fn future_fn_allocator() -> Vec<Vec<u64>> {
     let mut rng = rand::thread_rng();
     let num_arrays = rng.gen_range(1..=5);
@@ -78,7 +77,7 @@ async fn future_fn_allocator() -> Vec<Vec<u64>> {
 }
 
 /// Async function instrumented with #[future_fn(log = true)] - logs the result
-#[cfg_attr(feature = "hotpath", hotpath::future_fn(log = true))]
+#[hotpath::future_fn(log = true)]
 async fn future_fn_with_logging() -> u64 {
     let mut rng = rand::thread_rng();
     let iterations = rng.gen_range(3..8);
@@ -92,7 +91,7 @@ async fn future_fn_with_logging() -> u64 {
     total
 }
 
-#[cfg_attr(feature = "hotpath", hotpath::measure(log = true))]
+#[hotpath::measure(log = true)]
 async fn fast_async_allocator() -> Vec<Vec<u64>> {
     let mut rng = rand::thread_rng();
     let num_arrays = rng.gen_range(1..=10);
@@ -109,7 +108,7 @@ async fn fast_async_allocator() -> Vec<Vec<u64>> {
     arrays
 }
 
-#[cfg_attr(feature = "hotpath", hotpath::measure)]
+#[hotpath::measure]
 async fn slow_async_allocator() -> Vec<Vec<u64>> {
     let mut rng = rand::thread_rng();
     let num_arrays = rng.gen_range(1..=10);
@@ -128,7 +127,7 @@ async fn slow_async_allocator() -> Vec<Vec<u64>> {
 
 /// Async function designed to migrate between threads.
 /// Many yield points give the executor opportunities to reschedule on different workers.
-#[cfg_attr(feature = "hotpath", hotpath::measure(log = true))]
+#[hotpath::measure(log = true)]
 async fn cross_thread_worker() -> u64 {
     let mut total = 0u64;
 
@@ -145,7 +144,7 @@ async fn cross_thread_worker() -> u64 {
 }
 
 /// Another async function with many awaits to demonstrate cross-thread behavior.
-#[cfg_attr(feature = "hotpath", hotpath::measure)]
+#[hotpath::measure]
 async fn heavy_async_work() -> Vec<u64> {
     let mut results = Vec::new();
 
@@ -164,7 +163,7 @@ async fn heavy_async_work() -> Vec<u64> {
     results
 }
 
-#[cfg_attr(feature = "hotpath", hotpath::measure(log = true))]
+#[hotpath::measure(log = true)]
 fn process_data(arrays: Vec<Vec<u64>>) -> u64 {
     let mut rng = rand::thread_rng();
     let mut total_sum = 0u64;
@@ -348,7 +347,7 @@ fn alternating_state_worker(stop_flag: Arc<Mutex<bool>>) {
 }
 
 #[tokio::main]
-#[cfg_attr(feature = "hotpath", hotpath::main)]
+#[hotpath::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Starting 60-second profiling test...");
     println!("Spawning threads with various states for TUI demonstration...");
@@ -396,25 +395,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  - 1x alternating: Alternates between Running and Sleeping");
     println!();
 
-    let (fast_tx, fast_rx) = mpsc::channel::<u64>(100);
-    let (slow_tx, slow_rx) = mpsc::channel::<String>(50);
-
-    #[cfg(feature = "hotpath")]
-    let (fast_tx, fast_rx) =
-        hotpath::channel!((fast_tx, fast_rx), label = "fast_metrics", log = true);
-    #[cfg(feature = "hotpath")]
-    let (slow_tx, slow_rx) = hotpath::channel!((slow_tx, slow_rx), label = "slow_events");
+    let (fast_tx, fast_rx) = hotpath::channel!(
+        mpsc::channel::<u64>(100),
+        label = "fast_metrics",
+        log = true
+    );
+    let (slow_tx, slow_rx) = hotpath::channel!(mpsc::channel::<String>(50), label = "slow_events");
 
     let mut fast_rx = fast_rx;
     let mut slow_rx = slow_rx;
 
-    let fast_stream = stream::iter(0u64..);
-    let slow_stream = stream::iter(0u64..);
-
-    #[cfg(feature = "hotpath")]
-    let fast_stream = hotpath::stream!(fast_stream, label = "fast_metrics_stream", log = true);
-    #[cfg(feature = "hotpath")]
-    let slow_stream = hotpath::stream!(slow_stream, label = "slow_status_stream");
+    let fast_stream = hotpath::stream!(
+        stream::iter(0u64..),
+        label = "fast_metrics_stream",
+        log = true
+    );
+    let slow_stream = hotpath::stream!(stream::iter(0u64..), label = "slow_status_stream");
 
     // Pin the streams for consumption
     let mut fast_stream = Box::pin(fast_stream);
@@ -510,35 +506,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         // Inline future! macro examples - instrument ad-hoc async blocks
-        #[cfg(feature = "hotpath")]
-        {
-            // Basic inline future with logging
-            let inline_result = future!(
+        // Basic inline future with logging
+        let inline_result = future!(
+            async {
+                sleep(Duration::from_micros(rng.gen_range(10..30))).await;
+                rng.gen::<u64>() % 500
+            },
+            log = true
+        )
+        .await;
+        std::hint::black_box(inline_result);
+
+        // Another inline future with logging enabled
+        if iteration % 5 == 0 {
+            let logged_inline = future!(
                 async {
-                    sleep(Duration::from_micros(rng.gen_range(10..30))).await;
-                    rng.gen::<u64>() % 500
+                    let mut sum = 0u64;
+                    for i in 0..3 {
+                        sleep(Duration::from_micros(5)).await;
+                        sum = sum.wrapping_add(i);
+                    }
+                    sum
                 },
                 log = true
             )
             .await;
-            std::hint::black_box(inline_result);
-
-            // Another inline future with logging enabled
-            if iteration % 5 == 0 {
-                let logged_inline = future!(
-                    async {
-                        let mut sum = 0u64;
-                        for i in 0..3 {
-                            sleep(Duration::from_micros(5)).await;
-                            sum = sum.wrapping_add(i);
-                        }
-                        sum
-                    },
-                    log = true
-                )
-                .await;
-                std::hint::black_box(logged_inline);
-            }
+            std::hint::black_box(logged_inline);
         }
 
         // Call cross-thread async functions (may migrate between worker threads)
@@ -570,7 +563,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         sleep(Duration::from_millis(rng.gen_range(10..50))).await;
 
-        #[cfg(feature = "hotpath")]
         hotpath::measure_block!("iteration_block", {
             let temp: Vec<u32> = (0..rng.gen_range(50..200)).map(|_| rng.gen()).collect();
             std::hint::black_box(&temp);

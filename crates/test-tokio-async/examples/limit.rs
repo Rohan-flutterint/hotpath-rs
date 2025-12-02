@@ -1,4 +1,4 @@
-#[cfg_attr(feature = "hotpath", hotpath::measure_all)]
+#[hotpath::measure_all]
 mod measured_module {
     pub fn function_one() {
         let vec = vec![1, 2, 3, 5, 6, 7, 8, 9, 10];
@@ -13,7 +13,7 @@ mod measured_module {
     pub fn function_three() {}
 }
 
-#[cfg_attr(feature = "hotpath", hotpath::main(limit = 3))]
+#[hotpath::main(limit = 3)]
 fn main() {
     for _ in 0..10 {
         measured_module::function_one();

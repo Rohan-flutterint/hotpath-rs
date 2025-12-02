@@ -3,17 +3,17 @@ use std::time::Duration;
 
 #[allow(unused_mut)]
 fn main() {
-    #[cfg(feature = "hotpath")]
     let _channels_guard =
         hotpath::channels::ChannelsGuard::new().format(hotpath::channels::Format::JsonPretty);
 
-    let (txa, mut _rxa) = crossbeam_channel::unbounded::<i32>();
-    #[cfg(feature = "hotpath")]
-    let (txa, mut _rxa) = hotpath::channel!((txa, _rxa), label = "unbounded");
+    let (txa, mut _rxa) =
+        hotpath::channel!(crossbeam_channel::unbounded::<i32>(), label = "unbounded");
 
-    let (txb, rxb) = crossbeam_channel::bounded::<i32>(10);
-    #[cfg(feature = "hotpath")]
-    let (txb, rxb) = hotpath::channel!((txb, rxb), label = "bounded", capacity = 10);
+    let (txb, rxb) = hotpath::channel!(
+        crossbeam_channel::bounded::<i32>(10),
+        label = "bounded",
+        capacity = 10
+    );
 
     let sender_handle = thread::spawn(move || {
         for i in 1..=3 {

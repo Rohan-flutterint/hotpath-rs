@@ -1,5 +1,8 @@
+#[cfg(feature = "hotpath")]
 use crate::FunctionStats;
+#[cfg(feature = "hotpath")]
 use colored::*;
+#[cfg(feature = "hotpath")]
 use prettytable::{color, Attr, Cell, Row, Table};
 use serde::{
     ser::{SerializeMap, Serializer},
@@ -7,6 +10,7 @@ use serde::{
 };
 use std::collections::HashMap;
 use std::fmt;
+#[cfg(feature = "hotpath")]
 use std::time::Duration;
 
 /// Represents different types of profiling metrics with their values.
@@ -459,6 +463,7 @@ impl<'a> Serialize for FunctionDataSerializer<'a> {
     }
 }
 
+#[cfg(feature = "hotpath")]
 impl From<&dyn MetricsProvider<'_>> for FunctionsJson {
     fn from(metrics: &dyn MetricsProvider<'_>) -> Self {
         let hotpath_profiling_mode = metrics.profiling_mode();
@@ -478,18 +483,7 @@ impl From<&dyn MetricsProvider<'_>> for FunctionsJson {
     }
 }
 
-impl FunctionsJson {
-    fn determine_profiling_mode() -> ProfilingMode {
-        cfg_if::cfg_if! {
-            if #[cfg(feature = "hotpath-alloc")] {
-                ProfilingMode::Alloc
-            } else {
-                ProfilingMode::Timing
-            }
-        }
-    }
-}
-
+#[cfg(feature = "hotpath")]
 pub(crate) fn display_table(metrics_provider: &dyn MetricsProvider<'_>) {
     let use_colors = std::env::var("NO_COLOR").is_err();
 
@@ -566,6 +560,7 @@ pub(crate) fn display_table(metrics_provider: &dyn MetricsProvider<'_>) {
     }
 }
 
+#[cfg(feature = "hotpath")]
 pub(crate) fn get_sorted_measurements(
     metrics_provider: &dyn MetricsProvider<'_>,
 ) -> Vec<(String, Vec<MetricType>)> {
@@ -654,6 +649,7 @@ pub trait MetricsProvider<'a> {
 
     fn entry_counts(&self) -> (usize, usize);
 
+    #[cfg(feature = "hotpath")]
     fn new(
         stats: &'a HashMap<&'static str, FunctionStats>,
         total_elapsed: Duration,
@@ -669,6 +665,7 @@ pub trait MetricsProvider<'a> {
     fn caller_name(&self) -> &str;
 }
 
+#[cfg(feature = "hotpath")]
 fn display_no_measurements_message(total_elapsed: Duration, caller_name: &str) {
     let title = format!(
         "\n{} No measurements recorded from {} (Total time: {:.2?})",
@@ -703,8 +700,10 @@ fn display_no_measurements_message(total_elapsed: Duration, caller_name: &str) {
     println!();
 }
 
+#[cfg(feature = "hotpath")]
 pub(crate) struct TableReporter;
 
+#[cfg(feature = "hotpath")]
 impl Reporter for TableReporter {
     fn report(
         &self,
@@ -723,8 +722,10 @@ impl Reporter for TableReporter {
     }
 }
 
+#[cfg(feature = "hotpath")]
 pub(crate) struct JsonReporter;
 
+#[cfg(feature = "hotpath")]
 impl Reporter for JsonReporter {
     fn report(
         &self,
@@ -741,8 +742,10 @@ impl Reporter for JsonReporter {
     }
 }
 
+#[cfg(feature = "hotpath")]
 pub(crate) struct JsonPrettyReporter;
 
+#[cfg(feature = "hotpath")]
 impl Reporter for JsonPrettyReporter {
     fn report(
         &self,
@@ -759,7 +762,7 @@ impl Reporter for JsonPrettyReporter {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(feature = "hotpath", feature = "ci")))]
 mod tests {
     use super::*;
 

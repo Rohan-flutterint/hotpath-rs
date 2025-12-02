@@ -1,12 +1,8 @@
 #[tokio::main]
 async fn main() {
-    #[cfg(feature = "hotpath")]
     let _channels_guard = hotpath::channels::ChannelsGuard::new();
 
-    let (tx, rx) = tokio::sync::oneshot::channel::<String>();
-
-    #[cfg(feature = "hotpath")]
-    let (tx, rx) = hotpath::channel!((tx, rx));
+    let (tx, rx) = hotpath::channel!(tokio::sync::oneshot::channel::<String>());
 
     drop(rx);
 

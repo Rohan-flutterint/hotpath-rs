@@ -1,23 +1,22 @@
 #[allow(unused_mut)]
 #[tokio::main]
 async fn main() {
-    #[cfg(feature = "hotpath")]
     let _channels_guard = hotpath::channels::ChannelsGuardBuilder::new().build();
 
-    let (txa, mut rxa) = tokio::sync::mpsc::unbounded_channel::<i32>();
+    let (txa, mut rxa) = hotpath::channel!(
+        tokio::sync::mpsc::unbounded_channel::<i32>(),
+        label = "unbounded-channel"
+    );
 
-    #[cfg(feature = "hotpath")]
-    let (txa, mut rxa) = hotpath::channel!((txa, rxa), label = "unbounded-channel");
+    let (txb, mut rxb) = hotpath::channel!(
+        tokio::sync::mpsc::channel::<i32>(10),
+        label = "bounded-channel"
+    );
 
-    let (txb, mut rxb) = tokio::sync::mpsc::channel::<i32>(10);
-
-    #[cfg(feature = "hotpath")]
-    let (txb, mut rxb) = hotpath::channel!((txb, rxb), label = "bounded-channel");
-
-    let (txc, rxc) = tokio::sync::oneshot::channel::<String>();
-
-    #[cfg(feature = "hotpath")]
-    let (txc, rxc) = hotpath::channel!((txc, rxc), label = "oneshot-channel");
+    let (txc, rxc) = hotpath::channel!(
+        tokio::sync::oneshot::channel::<String>(),
+        label = "oneshot-channel"
+    );
 
     println!("[Unbounded] Sending 3 messages...");
     for i in 1..=3 {

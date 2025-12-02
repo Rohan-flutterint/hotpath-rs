@@ -378,9 +378,9 @@ pub(crate) fn wrap_oneshot_log<T: Send + std::fmt::Debug + 'static>(
     wrap_oneshot_impl(inner, source, label, |msg| Some(format!("{:?}", msg)))
 }
 
-use crate::channels::Instrument;
+use crate::channels::InstrumentChannel;
 
-impl<T: Send + 'static> Instrument for (Sender<T>, Receiver<T>) {
+impl<T: Send + 'static> InstrumentChannel for (Sender<T>, Receiver<T>) {
     type Output = (Sender<T>, Receiver<T>);
     fn instrument(
         self,
@@ -392,7 +392,7 @@ impl<T: Send + 'static> Instrument for (Sender<T>, Receiver<T>) {
     }
 }
 
-impl<T: Send + 'static> Instrument for (UnboundedSender<T>, UnboundedReceiver<T>) {
+impl<T: Send + 'static> InstrumentChannel for (UnboundedSender<T>, UnboundedReceiver<T>) {
     type Output = (UnboundedSender<T>, UnboundedReceiver<T>);
     fn instrument(
         self,
@@ -404,7 +404,7 @@ impl<T: Send + 'static> Instrument for (UnboundedSender<T>, UnboundedReceiver<T>
     }
 }
 
-impl<T: Send + 'static> Instrument for (oneshot::Sender<T>, oneshot::Receiver<T>) {
+impl<T: Send + 'static> InstrumentChannel for (oneshot::Sender<T>, oneshot::Receiver<T>) {
     type Output = (oneshot::Sender<T>, oneshot::Receiver<T>);
     fn instrument(
         self,
@@ -416,9 +416,9 @@ impl<T: Send + 'static> Instrument for (oneshot::Sender<T>, oneshot::Receiver<T>
     }
 }
 
-use crate::channels::InstrumentLog;
+use crate::channels::InstrumentChannelLog;
 
-impl<T: Send + std::fmt::Debug + 'static> InstrumentLog for (Sender<T>, Receiver<T>) {
+impl<T: Send + std::fmt::Debug + 'static> InstrumentChannelLog for (Sender<T>, Receiver<T>) {
     type Output = (Sender<T>, Receiver<T>);
     fn instrument_log(
         self,
@@ -430,7 +430,7 @@ impl<T: Send + std::fmt::Debug + 'static> InstrumentLog for (Sender<T>, Receiver
     }
 }
 
-impl<T: Send + std::fmt::Debug + 'static> InstrumentLog
+impl<T: Send + std::fmt::Debug + 'static> InstrumentChannelLog
     for (UnboundedSender<T>, UnboundedReceiver<T>)
 {
     type Output = (UnboundedSender<T>, UnboundedReceiver<T>);
@@ -444,7 +444,7 @@ impl<T: Send + std::fmt::Debug + 'static> InstrumentLog
     }
 }
 
-impl<T: Send + std::fmt::Debug + 'static> InstrumentLog
+impl<T: Send + std::fmt::Debug + 'static> InstrumentChannelLog
     for (oneshot::Sender<T>, oneshot::Receiver<T>)
 {
     type Output = (oneshot::Sender<T>, oneshot::Receiver<T>);

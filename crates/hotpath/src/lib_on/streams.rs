@@ -1,7 +1,6 @@
 // Streams module - provides stream instrumentation and statistics
 
 use crossbeam_channel::{unbounded, Sender as CbSender};
-use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, OnceLock, RwLock};
@@ -17,8 +16,8 @@ pub use guard::{StreamsGuard, StreamsGuardBuilder};
 
 pub(crate) mod wrapper;
 
-// Re-export shared types from channels module
-pub use crate::channels::{ChannelState, Format, LogEntry};
+pub use crate::json::{ChannelState, LogEntry, SerializableStreamStats, StreamLogs, StreamsJson};
+pub use crate::Format;
 
 /// Statistics for a single instrumented stream.
 #[derive(Debug, Clone)]
@@ -32,29 +31,6 @@ pub(crate) struct StreamStats {
     pub(crate) type_size: usize,
     pub(crate) logs: VecDeque<LogEntry>,
     pub(crate) iter: u32,
-}
-
-/// Wrapper for streams-only JSON response
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StreamsJson {
-    /// Current elapsed time since program start in nanoseconds
-    pub current_elapsed_ns: u64,
-    /// Stream statistics
-    pub streams: Vec<SerializableStreamStats>,
-}
-
-/// Serializable version of stream statistics for JSON responses.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SerializableStreamStats {
-    pub id: u64,
-    pub source: String,
-    pub label: String,
-    pub has_custom_label: bool,
-    pub state: ChannelState,
-    pub items_yielded: u64,
-    pub type_name: String,
-    pub type_size: usize,
-    pub iter: u32,
 }
 
 impl From<&StreamStats> for SerializableStreamStats {
@@ -179,7 +155,7 @@ pub(crate) fn init_streams_state() -> &'static StreamStatsState {
                                 }
                                 stream_stats.logs.push_back(LogEntry::new(
                                     stream_stats.items_yielded,
-                                    timestamp,
+                                    crate::channels::timestamp_nanos(timestamp),
                                     log,
                                     None,
                                 ));
@@ -359,13 +335,6 @@ pub fn get_streams_json() -> StreamsJson {
         current_elapsed_ns,
         streams,
     }
-}
-
-/// Serializable log response containing yielded logs for streams.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StreamLogs {
-    pub id: String,
-    pub logs: Vec<LogEntry>,
 }
 
 pub fn get_stream_logs(stream_id: &str) -> Option<StreamLogs> {

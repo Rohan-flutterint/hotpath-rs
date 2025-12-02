@@ -108,7 +108,7 @@ fn get_thread_info(tid: u64, ticks_per_sec: f64) -> Result<ThreadMetrics, String
     let cpu_user = utime_ticks as f64 / ticks_per_sec;
     let cpu_sys = stime_ticks as f64 / ticks_per_sec;
 
-    Ok(ThreadMetrics::new(
+    Ok(super::ThreadMetrics::new(
         tid,
         name,
         status,

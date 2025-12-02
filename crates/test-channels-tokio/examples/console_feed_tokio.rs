@@ -127,7 +127,6 @@ async fn main() {
     #[cfg(feature = "tokio-console")]
     console_subscriber::init();
 
-    #[cfg(feature = "hotpath")]
     let _channels_guard = hotpath::channels::ChannelsGuard::new();
 
     println!("Open the TUI console to watch live updates!");
@@ -135,83 +134,69 @@ async fn main() {
     tokio::time::sleep(Duration::from_secs(2)).await;
 
     // Channel 1: Fast data stream - unbounded, rapid messages
-    let (tx_fast, mut rx_fast) = tokio::sync::mpsc::unbounded_channel::<String>();
-    #[cfg(feature = "hotpath")]
-    let (tx_fast, mut rx_fast) = hotpath::channel!((tx_fast, rx_fast), label = "fast-data-stream");
+    let (tx_fast, mut rx_fast) = hotpath::channel!(
+        tokio::sync::mpsc::unbounded_channel::<String>(),
+        label = "fast-data-stream"
+    );
 
     // Channel 2: Slow consumer - bounded(5), will back up!
-    let (tx_slow, mut rx_slow) = tokio::sync::mpsc::channel::<UserData>(5);
-    #[cfg(feature = "hotpath")]
-    let (tx_slow, mut rx_slow) =
-        hotpath::channel!((tx_slow, rx_slow), label = "slow-consumer", log = true);
+    let (tx_slow, mut rx_slow) = hotpath::channel!(
+        tokio::sync::mpsc::channel::<UserData>(5),
+        label = "slow-consumer",
+        log = true
+    );
 
     // Channel 3: Burst traffic - bounded(10), bursts every 3 seconds
-    let (tx_burst, mut rx_burst) = tokio::sync::mpsc::channel::<u64>(10);
-    #[cfg(feature = "hotpath")]
-    let (tx_burst, mut rx_burst) =
-        hotpath::channel!((tx_burst, rx_burst), label = "burst-traffic", log = true);
+    let (tx_burst, mut rx_burst) = hotpath::channel!(
+        tokio::sync::mpsc::channel::<u64>(10),
+        label = "burst-traffic",
+        log = true
+    );
 
     // Channel 4: Gradual flow - bounded(20), increasing rate
-    let (tx_gradual, mut rx_gradual) = tokio::sync::mpsc::channel::<f64>(20);
-    #[cfg(feature = "hotpath")]
-    let (tx_gradual, mut rx_gradual) = hotpath::channel!((tx_gradual, rx_gradual), log = true);
+    let (tx_gradual, mut rx_gradual) =
+        hotpath::channel!(tokio::sync::mpsc::channel::<f64>(20), log = true);
 
     // Channel 5: Dropped early - unbounded, producer dies at 10s
-    let (tx_drop_early, mut rx_drop_early) = tokio::sync::mpsc::unbounded_channel::<bool>();
-    #[cfg(feature = "hotpath")]
     let (tx_drop_early, mut rx_drop_early) =
-        hotpath::channel!((tx_drop_early, rx_drop_early), log = true);
+        hotpath::channel!(tokio::sync::mpsc::unbounded_channel::<bool>(), log = true);
 
     // Channel 6: Consumer dies - bounded(8), consumer stops at 15s
-    let (tx_consumer_dies, mut rx_consumer_dies) = tokio::sync::mpsc::channel::<Vec<u8>>(8);
-    #[cfg(feature = "hotpath")]
     let (tx_consumer_dies, mut rx_consumer_dies) = hotpath::channel!(
-        (tx_consumer_dies, rx_consumer_dies),
+        tokio::sync::mpsc::channel::<Vec<u8>>(8),
         label = "consumer-dies",
         log = true
     );
 
     // Channel 7: Steady stream - unbounded, consistent 500ms rate
-    let (tx_steady, mut rx_steady) = tokio::sync::mpsc::unbounded_channel::<&str>();
-    #[cfg(feature = "hotpath")]
-    let (tx_steady, mut rx_steady) = hotpath::channel!((tx_steady, rx_steady), log = true);
+    let (tx_steady, mut rx_steady) =
+        hotpath::channel!(tokio::sync::mpsc::unbounded_channel::<&str>(), log = true);
 
     // Channel 8: Oneshot early - fires at 5 seconds
-    let (tx_oneshot_early, rx_oneshot_early) = tokio::sync::oneshot::channel::<String>();
-    #[cfg(feature = "hotpath")]
     let (tx_oneshot_early, rx_oneshot_early) =
-        hotpath::channel!((tx_oneshot_early, rx_oneshot_early), log = true);
+        hotpath::channel!(tokio::sync::oneshot::channel::<String>(), log = true);
 
     // Channel 9: Oneshot mid - fires at 15 seconds
-    let (tx_oneshot_mid, rx_oneshot_mid) = tokio::sync::oneshot::channel::<u32>();
-    #[cfg(feature = "hotpath")]
     let (tx_oneshot_mid, rx_oneshot_mid) =
-        hotpath::channel!((tx_oneshot_mid, rx_oneshot_mid), log = true);
+        hotpath::channel!(tokio::sync::oneshot::channel::<u32>(), log = true);
 
     // Channel 10: Oneshot late - fires at 25 seconds
-    let (tx_oneshot_late, rx_oneshot_late) = tokio::sync::oneshot::channel::<i64>();
-    #[cfg(feature = "hotpath")]
     let (tx_oneshot_late, rx_oneshot_late) = hotpath::channel!(
-        (tx_oneshot_late, rx_oneshot_late),
+        tokio::sync::oneshot::channel::<i64>(),
         label = "oneshot-late",
         log = true
     );
 
     // Channel 11: Big payload - bounded(10), sends large structured data
-    let (tx_big_payload, mut rx_big_payload) = tokio::sync::mpsc::channel::<BigPayload>(10);
-    #[cfg(feature = "hotpath")]
     let (tx_big_payload, mut rx_big_payload) = hotpath::channel!(
-        (tx_big_payload, rx_big_payload),
+        tokio::sync::mpsc::channel::<BigPayload>(10),
         label = "big-payload",
         log = true
     );
 
     println!("Creating 3 bounded iter channels...");
     for i in 0..3 {
-        let (tx, mut rx) = tokio::sync::mpsc::channel::<u32>(5);
-
-        #[cfg(feature = "hotpath")]
-        let (tx, mut rx) = hotpath::channel!((tx, rx), log = true);
+        let (tx, mut rx) = hotpath::channel!(tokio::sync::mpsc::channel::<u32>(5), log = true);
 
         tokio::spawn(async move {
             for j in 0..50 {

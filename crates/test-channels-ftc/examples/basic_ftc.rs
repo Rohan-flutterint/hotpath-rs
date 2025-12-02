@@ -14,21 +14,23 @@ fn main() {
             name: "Actor 1".to_string(),
         };
 
-        #[cfg(feature = "hotpath")]
         let _channels_guard = hotpath::channels::ChannelsGuard::new();
 
-        let (txa, mut _rxa) = futures_channel::mpsc::unbounded::<i32>();
-        #[cfg(feature = "hotpath")]
-        let (txa, mut _rxa) = hotpath::channel!((txa, _rxa), label = _actor1.name);
+        let (txa, mut _rxa) = hotpath::channel!(
+            futures_channel::mpsc::unbounded::<i32>(),
+            label = _actor1.name
+        );
 
-        let (mut txb, mut rxb) = futures_channel::mpsc::channel::<i32>(10);
-        #[cfg(feature = "hotpath")]
-        let (mut txb, mut rxb) =
-            hotpath::channel!((txb, rxb), capacity = 10, label = "bounded-channel");
+        let (mut txb, mut rxb) = hotpath::channel!(
+            futures_channel::mpsc::channel::<i32>(10),
+            capacity = 10,
+            label = "bounded-channel"
+        );
 
-        let (txc, rxc) = futures_channel::oneshot::channel::<String>();
-        #[cfg(feature = "hotpath")]
-        let (txc, rxc) = hotpath::channel!((txc, rxc), label = "oneshot-labeled");
+        let (txc, rxc) = hotpath::channel!(
+            futures_channel::oneshot::channel::<String>(),
+            label = "oneshot-labeled"
+        );
 
         let sender_handle = smol::spawn(async move {
             for i in 1..=3 {

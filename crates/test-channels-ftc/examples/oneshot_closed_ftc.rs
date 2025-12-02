@@ -4,12 +4,12 @@ use std::time::Duration;
 #[allow(unused_mut)]
 fn main() {
     smol::block_on(async {
-        #[cfg(feature = "hotpath")]
         let _channels_guard = hotpath::channels::ChannelsGuard::new();
 
-        let (tx, rx) = futures_channel::oneshot::channel::<String>();
-        #[cfg(feature = "hotpath")]
-        let (tx, rx) = hotpath::channel!((tx, rx), label = "oneshot-closed");
+        let (tx, rx) = hotpath::channel!(
+            futures_channel::oneshot::channel::<String>(),
+            label = "oneshot-closed"
+        );
 
         drop(rx);
 

@@ -62,25 +62,28 @@ jobs:
           cargo test --lib --features hotpath
       - name: Run CLI tests
         run: | 
-          cargo test -p hotpath --bin hotpath
+          cargo test -p hotpath --bin hotpath --features=tui
       - name: Run functions tests
         run: |
-          cargo test --test functions -- --nocapture --test-threads=1
+          cargo test --features hotpath --test functions -- --nocapture --test-threads=1
       - name: Run streams tests
         run: |
-          cargo test --test streams -- --nocapture --test-threads=1
+          cargo test --features hotpath --test streams -- --nocapture --test-threads=1
       - name: Run channels crossbeam tests
         run: |
-          cargo test --test channels_crossbeam -- --nocapture --test-threads=1
+          cargo test --features hotpath --test channels_crossbeam -- --nocapture --test-threads=1
       - name: Run channels futures tests
         run: |
-          cargo test --test channels_ftc -- --nocapture --test-threads=1
+          cargo test --features hotpath --test channels_ftc -- --nocapture --test-threads=1
       - name: Run channels std tests
         run: |
-          cargo test --test channels_std -- --nocapture --test-threads=1
+          cargo test --features hotpath --test channels_std -- --nocapture --test-threads=1
       - name: Run channels tokio tests
         run: |
-          cargo test --test channels_tokio -- --nocapture --test-threads=1
+          cargo test --features hotpath --test channels_tokio -- --nocapture --test-threads=1
       - name: Run threads tests
         run: |
-          cargo test --test threads -- --nocapture --test-threads=1
+          cargo test --features hotpath --test threads -- --nocapture --test-threads=1
+      - name: Run futures tests
+        run: |
+          cargo test --features hotpath --test futures -- --nocapture --test-threads=1

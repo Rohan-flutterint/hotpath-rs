@@ -26,13 +26,13 @@ async fn multi_step_operation() -> String {
     step1 + step2
 }
 
-#[cfg_attr(feature = "hotpath", hotpath::future_fn)]
+#[hotpath::future_fn]
 async fn attributed_no_log() -> i32 {
     tokio::time::sleep(Duration::from_millis(5)).await;
     100
 }
 
-#[cfg_attr(feature = "hotpath", hotpath::future_fn(log = true))]
+#[hotpath::future_fn(log = true)]
 async fn attributed_with_log() -> String {
     tokio::time::sleep(Duration::from_millis(5)).await;
     "attributed result".to_string()

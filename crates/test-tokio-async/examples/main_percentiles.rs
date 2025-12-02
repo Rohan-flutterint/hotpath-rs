@@ -1,11 +1,11 @@
 use std::time::Duration;
 
-#[cfg_attr(feature = "hotpath", hotpath::measure)]
+#[hotpath::measure]
 fn example_function() {
     std::thread::sleep(Duration::from_millis(10));
 }
 
-#[cfg_attr(feature = "hotpath", hotpath::main(percentiles = [50, 90, 99]))]
+#[hotpath::main(percentiles = [50, 90, 99])]
 fn main() {
     for _ in 0..5 {
         example_function();

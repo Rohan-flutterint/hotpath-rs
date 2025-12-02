@@ -10,45 +10,78 @@ categories = ["development-tools"]
 
 [[bin]]
 name = "hotpath"
-path = "bin/main.rs"
+path = "bin/hotpath/main.rs"
+required-features = ["tui"]
+
+[[bin]]
+name = "hotpath-ci"
+path = "bin/hotpath-ci/main.rs"
+required-features = ["ci"]
 
 [features]
 default = ["threads"]
-hotpath = ["hotpath-macros/hotpath", "hotpath-macros/hotpath-off"]
+hotpath = [
+  "hotpath-macros/hotpath",
+  "dep:arc-swap",
+  "dep:base64",
+  "dep:cfg-if",
+  "dep:clap",
+  "dep:colored",
+  "dep:crossbeam-channel",
+  "dep:eyre",
+  "dep:hdrhistogram",
+  "dep:prettytable-rs",
+  "dep:quanta",
+  "dep:serde",
+  "dep:serde_json",
+  "dep:tiny_http",
+  "dep:ureq",
+  "dep:futures-util",
+  "dep:pin-project-lite",
+  "dep:regex",
+  "dep:libc",
+  "dep:mach2",
+]
 hotpath-alloc = ["dep:tokio"]
-hotpath-off = []
-tui = ["dep:crossterm", "dep:ratatui", "dep:chrono"]
+hotpath-off = ["hotpath-macros/hotpath-off"]
+ci = ["dep:serde", "dep:serde_json", "dep:eyre", "dep:clap", "dep:prettytable-rs", "dep:ureq"]
+tui = ["dep:serde", "dep:serde_json", "dep:eyre", "dep:clap", "dep:prettytable-rs", "dep:ureq", "dep:crossterm", "dep:ratatui", "dep:chrono", "dep:base64"]
 tokio = ["dep:tokio", "tokio/sync", "tokio/macros", "tokio/time", "tokio/rt-multi-thread"]
 futures = ["dep:tokio", "tokio/sync", "tokio/macros", "tokio/time", "tokio/rt-multi-thread", "dep:futures-channel"]
 crossbeam = []
-threads = []  
+threads = []
 
 [dependencies]
-arc-swap = "1.7"
-base64 = "0.22"
-cfg-if = "1.0"
-clap = { version = "4.5", features = ["derive"] }
-colored = { version = "3" }
-crossbeam-channel = "0.5"
+arc-swap = { version = "1.7", optional = true }
+base64 = { version = "0.22", optional = true }
+cfg-if = { version = "1.0", optional = true }
+clap = { version = "4.5", features = ["derive"], optional = true }
+colored = { version = "3", optional = true }
+crossbeam-channel = { version = "0.5", optional = true }
 crossterm = { version = "0.29", optional = true }
-eyre = "0.6"
-hdrhistogram = { version = "7.5", default-features = false }
+eyre = { version = "0.6", optional = true }
+hdrhistogram = { version = "7.5", default-features = false, optional = true }
 hotpath-macros = { workspace = true }
-prettytable-rs = { version = "0.10", default-features = false }
-quanta = "0.12"
+prettytable-rs = { version = "0.10", default-features = false, optional = true }
+quanta = { version = "0.12", optional = true }
 ratatui = { version = "0.29", optional = true }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-tiny_http = "0.12"
+serde = { version = "1.0", features = ["derive"], optional = true }
+serde_json = { version = "1.0", optional = true }
+tiny_http = { version = "0.12", optional = true }
 tokio = { version = "1", features = ["rt"], optional = true }
-ureq = { version = "3.1", features = ["json"] }
+ureq = { version = "3.1", features = ["json"], optional = true }
 futures-channel = { version = "0.3", features = ["sink"], optional = true }
-futures-util = { version = "0.3", features = ["sink"] }
-pin-project-lite = "0.2"
-regex = "1"
+futures-util = { version = "0.3", features = ["sink"], optional = true }
+pin-project-lite = { version = "0.2", optional = true }
+regex = { version = "1", optional = true }
 chrono = { version = "0.4", optional = true }
-libc = "0.2"
+libc = { version = "0.2", optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-mach2 = "0.6"
+mach2 = { version = "0.6", optional = true }
+
+[dev-dependencies]
+serde_json = "1.0"
+ureq = { version = "3.1", features = ["json"] }
+base64 = "0.22"
 

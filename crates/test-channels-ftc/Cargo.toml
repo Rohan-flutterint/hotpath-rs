@@ -5,11 +5,11 @@ publish = false
 edition = "2021"
 
 [dependencies]
-hotpath = { workspace = true, optional = true, features = ["futures"] }
+hotpath = { workspace = true, features = ["futures"] }
 futures-channel = "0.3"
 futures-util = "0.3"
 smol = "2.0"
 async-io = "2.0"
 
 [features]
-hotpath = ["dep:hotpath", "hotpath/hotpath"]
+hotpath = ["hotpath/hotpath"]
