@@ -549,7 +549,7 @@ pub fn measure_all_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
             if let Some((_brace, items)) = &mut module.content {
                 for it in items.iter_mut() {
                     if let Item::Fn(func) = it {
-                        if !has_hotpath_skip(&func.attrs) {
+                        if !has_hotpath_skip_or_measure(&func.attrs) {
                             let func_tokens = TokenStream::from(quote!(#func));
                             let transformed = measure_impl(TokenStream::new(), func_tokens);
                             *func = syn::parse_macro_input!(transformed as ItemFn);
@@ -562,7 +562,7 @@ pub fn measure_all_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
         Item::Impl(mut impl_block) => {
             for item in impl_block.items.iter_mut() {
                 if let ImplItem::Fn(method) = item {
-                    if !has_hotpath_skip(&method.attrs) {
+                    if !has_hotpath_skip_or_measure(&method.attrs) {
                         let func_tokens = TokenStream::from(quote!(#method));
                         let transformed = measure_impl(TokenStream::new(), func_tokens);
                         *method = syn::parse_macro_input!(transformed as syn::ImplItemFn);
@@ -575,21 +575,32 @@ pub fn measure_all_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
     }
 }
 
-fn has_hotpath_skip(attrs: &[syn::Attribute]) -> bool {
+fn has_hotpath_skip_or_measure(attrs: &[syn::Attribute]) -> bool {
     attrs.iter().any(|attr| {
-        // Check for #[skip] or #[hotpath::skip]
-        if attr.path().is_ident("skip")
-            || (attr.path().segments.len() == 2
-                && attr.path().segments[0].ident == "hotpath"
-                && attr.path().segments[1].ident == "skip")
+        let path = attr.path();
+
+        // Check for #[hotpath::skip]
+        if path.segments.len() == 2
+            && path.segments[0].ident == "hotpath"
+            && path.segments[1].ident == "skip"
         {
             return true;
         }
 
-        // Check for #[hotpath::skip]
-        if attr.path().is_ident("cfg_attr") {
+        // Check for #[hotpath::measure]
+        if path.segments.len() == 2
+            && path.segments[0].ident == "hotpath"
+            && path.segments[1].ident == "measure"
+        {
+            return true;
+        }
+
+        // Check for #[cfg_attr(..., hotpath::skip)] or #[cfg_attr(..., hotpath::measure)]
+        if path.is_ident("cfg_attr") {
             let attr_str = quote!(#attr).to_string();
-            if attr_str.contains("hotpath") && attr_str.contains("skip") {
+            if attr_str.contains("hotpath")
+                && (attr_str.contains("skip") || attr_str.contains("measure"))
+            {
                 return true;
             }
         }

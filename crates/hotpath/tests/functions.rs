@@ -500,6 +500,7 @@ pub mod tests {
             "measured_module::sync_function_one",
             "measured_module::async_function_one",
             "measure_all_mod::main",
+            "| measured_module::async_function_one | 50    |",
         ];
 
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -552,6 +553,7 @@ pub mod tests {
             "measure_all_impl::async_decrement",
             "measure_all_impl::get_value",
             "measure_all_impl::main",
+            "| measure_all_impl::add             | 50    |",
         ];
 
         let stdout = String::from_utf8_lossy(&output.stdout);

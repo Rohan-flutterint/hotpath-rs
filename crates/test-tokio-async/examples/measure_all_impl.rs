@@ -13,6 +13,7 @@ impl Calculator {
         Self { value }
     }
 
+    #[hotpath::measure]
     fn add(&mut self, amount: u64) {
         let vec = vec![4, 5, 6];
         std::hint::black_box(&vec);

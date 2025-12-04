@@ -17,6 +17,7 @@ mod measured_module {
         std::thread::sleep(Duration::from_nanos(sleep * 2));
     }
 
+    #[hotpath::measure]
     pub async fn async_function_one(sleep: u64) {
         let vec = vec![1, 2, 3];
         std::hint::black_box(&vec);

@@ -5,7 +5,7 @@ use hotpath::json::{
 };
 
 /// Fetches timing metrics from the hotpath HTTP server
-#[hotpath::measure]
+#[hotpath::measure(log = true)]
 pub(crate) fn fetch_functions_timing(agent: &ureq::Agent, port: u16) -> Result<FunctionsJson> {
     let url = Route::FunctionsTiming.to_url(port);
     let metrics: FunctionsJson = agent
@@ -20,7 +20,7 @@ pub(crate) fn fetch_functions_timing(agent: &ureq::Agent, port: u16) -> Result<F
 
 /// Fetches allocation metrics from the hotpath HTTP server
 /// Returns None if hotpath-alloc feature is not enabled (404 response)
-#[hotpath::measure]
+#[hotpath::measure(log = true)]
 pub(crate) fn fetch_functions_alloc(
     agent: &ureq::Agent,
     port: u16,
@@ -45,7 +45,7 @@ pub(crate) fn fetch_functions_alloc(
 }
 
 /// Fetches channels from the hotpath HTTP server
-#[hotpath::measure]
+#[hotpath::measure(log = true)]
 pub(crate) fn fetch_channels(agent: &ureq::Agent, port: u16) -> Result<ChannelsJson> {
     let url = Route::Channels.to_url(port);
     let channels: ChannelsJson = agent
@@ -60,7 +60,7 @@ pub(crate) fn fetch_channels(agent: &ureq::Agent, port: u16) -> Result<ChannelsJ
 
 /// Fetches recent timing logs for a specific function
 /// Returns None if function is not found (404 response)
-#[hotpath::measure]
+#[hotpath::measure(log = true)]
 pub(crate) fn fetch_function_logs_timing(
     agent: &ureq::Agent,
     port: u16,
@@ -90,7 +90,7 @@ pub(crate) fn fetch_function_logs_timing(
 
 /// Fetches recent allocation logs for a specific function
 /// Returns None if hotpath-alloc feature is not enabled (404 response)
-#[hotpath::measure]
+#[hotpath::measure(log = true)]
 pub(crate) fn fetch_function_logs_alloc(
     agent: &ureq::Agent,
     port: u16,
@@ -119,7 +119,7 @@ pub(crate) fn fetch_function_logs_alloc(
 }
 
 /// Fetches logs for a specific channel from the HTTP server
-#[hotpath::measure]
+#[hotpath::measure(log = true)]
 pub(crate) fn fetch_channel_logs(
     agent: &ureq::Agent,
     port: u16,
@@ -137,7 +137,7 @@ pub(crate) fn fetch_channel_logs(
 }
 
 /// Fetches streams from the hotpath HTTP server
-#[hotpath::measure]
+#[hotpath::measure(log = true)]
 pub(crate) fn fetch_streams(agent: &ureq::Agent, port: u16) -> Result<StreamsJson> {
     let url = Route::Streams.to_url(port);
     let streams: StreamsJson = agent
@@ -151,7 +151,7 @@ pub(crate) fn fetch_streams(agent: &ureq::Agent, port: u16) -> Result<StreamsJso
 }
 
 /// Fetches logs for a specific stream from the HTTP server
-#[hotpath::measure]
+#[hotpath::measure(log = true)]
 pub(crate) fn fetch_stream_logs(
     agent: &ureq::Agent,
     port: u16,
@@ -169,7 +169,7 @@ pub(crate) fn fetch_stream_logs(
 }
 
 /// Fetches thread metrics from the hotpath HTTP server
-#[hotpath::measure]
+#[hotpath::measure(log = true)]
 pub(crate) fn fetch_threads(agent: &ureq::Agent, port: u16) -> Result<ThreadsJson> {
     let url = Route::Threads.to_url(port);
     let threads: ThreadsJson = agent
@@ -183,7 +183,7 @@ pub(crate) fn fetch_threads(agent: &ureq::Agent, port: u16) -> Result<ThreadsJso
 }
 
 /// Fetches futures from the hotpath HTTP server
-#[hotpath::measure]
+#[hotpath::measure(log = true)]
 pub(crate) fn fetch_futures(agent: &ureq::Agent, port: u16) -> Result<FuturesJson> {
     let url = Route::Futures.to_url(port);
     let futures: FuturesJson = agent
@@ -197,7 +197,7 @@ pub(crate) fn fetch_futures(agent: &ureq::Agent, port: u16) -> Result<FuturesJso
 }
 
 /// Fetches calls for a specific future from the HTTP server
-#[hotpath::measure]
+#[hotpath::measure(log = true)]
 pub(crate) fn fetch_future_calls(
     agent: &ureq::Agent,
     port: u16,

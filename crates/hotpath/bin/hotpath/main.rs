@@ -23,7 +23,7 @@ pub struct HPArgs {
     pub cmd: HPSubcommand,
 }
 
-#[hotpath::main]
+#[hotpath::main(limit = 20)]
 fn main() -> Result<()> {
     let root_args = HPArgs::parse();
 

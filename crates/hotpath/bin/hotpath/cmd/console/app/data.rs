@@ -164,6 +164,7 @@ impl App {
     }
 
     /// Get sorted entries for specific functions data (sorted by percentage, highest first)
+    #[hotpath::measure(log = true)]
     fn get_sorted_measurements_for(
         functions: &FunctionsJson,
     ) -> Vec<(String, Vec<hotpath::MetricType>)> {
@@ -206,21 +207,25 @@ impl App {
     }
 
     /// Get sorted entries (sorted by percentage, highest first)
+    #[hotpath::measure(log = true)]
     pub(crate) fn get_sorted_measurements(&self) -> Vec<(String, Vec<hotpath::MetricType>)> {
         let functions = self.active_functions();
         Self::get_sorted_measurements_for(functions)
     }
 
     /// Get sorted timing measurements
+    #[hotpath::measure(log = true)]
     pub(crate) fn get_timing_measurements(&self) -> Vec<(String, Vec<hotpath::MetricType>)> {
         Self::get_sorted_measurements_for(&self.timing_functions)
     }
 
     /// Get sorted memory measurements
+    #[hotpath::measure(log = true)]
     pub(crate) fn get_memory_measurements(&self) -> Vec<(String, Vec<hotpath::MetricType>)> {
         Self::get_sorted_measurements_for(&self.memory_functions)
     }
 
+    #[hotpath::measure(log = true)]
     pub(crate) fn selected_function_name(&self) -> Option<String> {
         let sorted_entries = self.get_sorted_measurements();
         let table_state = match self.selected_tab {
