@@ -35,7 +35,6 @@ hotpath = [
   "dep:serde",
   "dep:serde_json",
   "dep:tiny_http",
-  "dep:ureq",
   "dep:futures-util",
   "dep:pin-project-lite",
   "dep:regex",
