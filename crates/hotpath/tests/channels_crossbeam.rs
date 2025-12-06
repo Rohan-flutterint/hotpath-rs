@@ -2,6 +2,14 @@
 pub mod tests {
     use std::process::Command;
 
+    fn path_sep() -> &'static str {
+        if cfg!(windows) {
+            "\\"
+        } else {
+            "/"
+        }
+    }
+
     #[test]
     fn test_basic_output() {
         let output = Command::new("cargo")
@@ -24,8 +32,10 @@ pub mod tests {
         );
 
         assert!(!output.stderr.is_empty(), "Stderr is empty");
+        let sep = path_sep();
+        let basic_crossbeam_path = format!("examples{sep}basic_crossbeam.rs");
         let all_expected = [
-            "examples/basic_crossbeam.rs",
+            basic_crossbeam_path.as_str(),
             "hello-there",
             "unbounded",
             "bounded[10]",
@@ -135,13 +145,17 @@ pub mod tests {
 
         let stdout = String::from_utf8_lossy(&output.stdout);
 
+        let sep = path_sep();
+        let iter_path = format!("examples{sep}iter_crossbeam.rs:12");
+        let iter_path_2 = format!("examples{sep}iter_crossbeam.rs:12-2");
+        let iter_path_3 = format!("examples{sep}iter_crossbeam.rs:12-3");
         let all_expected = [
             "bounded",
             "bounded-2",
             "bounded-3",
-            "examples/iter_crossbeam.rs:12",
-            "examples/iter_crossbeam.rs:12-2",
-            "examples/iter_crossbeam.rs:12-3",
+            iter_path.as_str(),
+            iter_path_2.as_str(),
+            iter_path_3.as_str(),
         ];
 
         for expected in all_expected {

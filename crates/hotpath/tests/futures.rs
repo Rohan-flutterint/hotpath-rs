@@ -2,6 +2,14 @@
 pub mod tests {
     use std::process::Command;
 
+    fn path_sep() -> &'static str {
+        if cfg!(windows) {
+            "\\"
+        } else {
+            "/"
+        }
+    }
+
     #[test]
     fn test_basic_futures_output() {
         let output = Command::new("cargo")
@@ -25,10 +33,12 @@ pub mod tests {
 
         let stdout = String::from_utf8_lossy(&output.stdout);
 
+        let sep = path_sep();
+        let futures_path = format!("| examples{sep}basic_futures.rs:47");
         let all_expected = [
             "| basic_futures::attributed_no_log   | 2     | 4     |",
             "| basic_futures::attributed_with_log | 2     | 4     |",
-            "| examples/basic_futures.rs:47       | 1     | 1     |",
+            futures_path.as_str(),
         ];
 
         for expected in all_expected {

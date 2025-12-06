@@ -2,6 +2,14 @@
 pub mod tests {
     use std::process::Command;
 
+    fn path_sep() -> &'static str {
+        if cfg!(windows) {
+            "\\"
+        } else {
+            "/"
+        }
+    }
+
     #[test]
     fn test_basic_output() {
         let output = Command::new("cargo")
@@ -176,6 +184,10 @@ pub mod tests {
 
         let stdout = String::from_utf8_lossy(&output.stdout);
 
+        let sep = path_sep();
+        let iter_55 = format!("examples{sep}iter_ftc.rs:55");
+        let iter_55_2 = format!("examples{sep}iter_ftc.rs:55-2");
+        let iter_55_3 = format!("examples{sep}iter_ftc.rs:55-3");
         let all_expected = [
             "Actor 1",
             "Actor 1-2",
@@ -183,9 +195,9 @@ pub mod tests {
             "bounded",
             "bounded-2",
             "bounded-3",
-            "examples/iter_ftc.rs:55",
-            "examples/iter_ftc.rs:55-2",
-            "examples/iter_ftc.rs:55-3",
+            iter_55.as_str(),
+            iter_55_2.as_str(),
+            iter_55_3.as_str(),
         ];
 
         for expected in all_expected {

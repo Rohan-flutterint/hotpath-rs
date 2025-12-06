@@ -13,6 +13,10 @@ mod collector;
 #[path = "threads/collector_linux.rs"]
 mod collector;
 
+#[cfg(target_os = "windows")]
+#[path = "threads/collector_windows.rs"]
+mod collector;
+
 // Re-export JSON types from json module
 pub use crate::json::{ThreadMetrics, ThreadsJson};
 
@@ -84,7 +88,7 @@ pub fn init_threads_monitoring() {
     });
 }
 
-#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
 fn collector_loop(state: ThreadsStateRef, interval: Duration) {
     loop {
         match collector::collect_thread_metrics() {
@@ -130,7 +134,7 @@ fn collector_loop(state: ThreadsStateRef, interval: Duration) {
     }
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
 fn collector_loop(_state: ThreadsStateRef, _interval: Duration) {
     // No-op on unsupported platforms - sleep forever
     loop {
@@ -139,12 +143,12 @@ fn collector_loop(_state: ThreadsStateRef, _interval: Duration) {
 }
 
 /// Get RSS from collector (platform-specific)
-#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
 fn get_rss_bytes() -> Option<u64> {
     collector::get_rss_bytes()
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
 fn get_rss_bytes() -> Option<u64> {
     None
 }

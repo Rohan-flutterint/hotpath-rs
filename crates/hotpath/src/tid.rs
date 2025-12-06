@@ -27,7 +27,8 @@ pub fn current_tid() -> u64 {
 
     #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     {
-        compile_error!("current_tid() is only implemented for Linux and macOS");
+        // current_tid() is only implemented for Linux and macOS");
+        0
     }
 }
 

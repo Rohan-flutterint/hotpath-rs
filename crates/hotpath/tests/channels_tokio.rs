@@ -2,6 +2,14 @@
 pub mod tests {
     use std::process::Command;
 
+    fn path_sep() -> &'static str {
+        if cfg!(windows) {
+            "\\"
+        } else {
+            "/"
+        }
+    }
+
     #[test]
     fn test_basic_output() {
         let output = Command::new("cargo")
@@ -64,10 +72,9 @@ pub mod tests {
             output.status
         );
 
-        let all_expected = [
-            "\"label\": \"examples/basic_json_tokio.rs:",
-            "\"label\": \"hello-there\"",
-        ];
+        let sep = path_sep();
+        let json_path = format!("\"label\": \"examples{sep}basic_json_tokio.rs:");
+        let all_expected = [json_path.as_str(), "\"label\": \"hello-there\""];
 
         let stdout = String::from_utf8_lossy(&output.stdout);
 
@@ -177,16 +184,23 @@ pub mod tests {
 
         let stdout = String::from_utf8_lossy(&output.stdout);
 
+        let sep = path_sep();
+        let iter_34 = format!("examples{sep}iter_tokio.rs:34");
+        let iter_34_2 = format!("examples{sep}iter_tokio.rs:34-2");
+        let iter_34_3 = format!("examples{sep}iter_tokio.rs:34-3");
+        let iter_46 = format!("examples{sep}iter_tokio.rs:46");
+        let iter_46_2 = format!("examples{sep}iter_tokio.rs:46-2");
+        let iter_46_3 = format!("examples{sep}iter_tokio.rs:46-3");
         let all_expected = [
             "Actor 1",
             "Actor 1-2",
             "Actor 1-3",
-            "examples/iter_tokio.rs:34",
-            "examples/iter_tokio.rs:34-2",
-            "examples/iter_tokio.rs:34-3",
-            "examples/iter_tokio.rs:46",
-            "examples/iter_tokio.rs:46-2",
-            "examples/iter_tokio.rs:46-3",
+            iter_34.as_str(),
+            iter_34_2.as_str(),
+            iter_34_3.as_str(),
+            iter_46.as_str(),
+            iter_46_2.as_str(),
+            iter_46_3.as_str(),
         ];
 
         for expected in all_expected {

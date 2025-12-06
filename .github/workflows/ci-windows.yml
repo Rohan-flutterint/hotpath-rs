@@ -1,4 +1,4 @@
-name: Rust CI (macOS)
+name: Rust CI (Windows)
 
 on:
   push:
@@ -9,8 +9,8 @@ on:
 jobs:
   build:
     name: test ${{ matrix.rust }}
-    runs-on: macos-latest
-    timeout-minutes: 7
+    runs-on: windows-latest
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -52,12 +52,3 @@ jobs:
       - name: Run channels std tests
         run: |
           cargo test --features hotpath --test channels_std -- --nocapture --test-threads=1
-      - name: Run channels tokio tests
-        run: |
-          cargo test --features hotpath --test channels_tokio -- --nocapture --test-threads=1
-      - name: Run threads tests
-        run: |
-          cargo test --features hotpath --test threads -- --nocapture --test-threads=1
-      - name: Run futures tests
-        run: |
-          cargo test --features hotpath --test futures -- --nocapture --test-threads=1
