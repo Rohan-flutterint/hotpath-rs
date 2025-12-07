@@ -216,10 +216,7 @@ use tokio::sync::mpsc;
 #[hotpath::main]
 async fn main() {
     // Create and instrument a channel in one step
-    #[cfg(feature = "hotpath")]
     let (tx, mut rx) = hotpath::channel!(mpsc::channel::<String>(100));
-    #[cfg(not(feature = "hotpath"))]
-    let (tx, mut rx) = mpsc::channel::<String>(100);
 
     // Use the channel exactly as before
     tx.send("Hello".to_string()).await.unwrap();
@@ -257,10 +254,7 @@ let (tx, rx) = hotpath::channel!(mpsc::channel::<String>(100), log = true);
 use futures_channel::mpsc;
 
 // futures bounded channel - MUST specify capacity
-#[cfg(feature = "hotpath")]
 let (tx, rx) = hotpath::channel!(mpsc::channel::<String>(10), capacity = 10);
-#[cfg(not(feature = "hotpath"))]
-let (tx, rx) = mpsc::channel::<String>(10);
 ```
 
 Tokio and crossbeam channels don't require this parameter because their capacity is accessible from the channel handles.
@@ -274,7 +268,6 @@ The `future!` macro and `#[future_fn]` attribute instrument async futures to tra
 #[hotpath::main]
 async fn main() {
     // Instrument a future expression
-    #[cfg(feature = "hotpath")]
     let result = hotpath::future!(async { 42 }, log = true).await;
 
     // Or use the attribute on async functions
@@ -308,10 +301,7 @@ use futures::stream::{self, StreamExt};
 #[hotpath::main]
 async fn main() {
     // Create and instrument a stream in one step
-    #[cfg(feature = "hotpath")]
     let s = hotpath::stream!(stream::iter(1..=100));
-    #[cfg(not(feature = "hotpath"))]
-    let s = stream::iter(1..=100);
 
     // Use it normally
     let items: Vec<_> = s.collect().await;
@@ -349,8 +339,6 @@ The `channel!` macro wraps channels with lightweight proxies that transparently 
 
 The `stream!` macro wraps streams and tracks items as they are yielded, collecting statistics about throughput and completion.
 
-**Zero-cost when disabled:** When the `hotpath` feature is disabled, the `#[cfg(feature = "hotpath")]` attribute ensures all instrumentation code is completely removed at compile time - there's absolutely zero runtime overhead.
-
 **Background processing:** The first invocation of `channel!` or `stream!` automatically starts:
 - A background thread for metrics collection
 - An HTTP server (when `HOTPATH_HTTP_PORT` is set) exposing metrics in JSON format for the TUI
@@ -379,14 +367,10 @@ use tokio::sync::mpsc;
 #[tokio::main]
 async fn main() {
     // Create guard at the start (prints stats when dropped)
-    #[cfg(feature = "hotpath")]
     let _guard = hotpath::ChannelsGuard::new();
 
     // Your code with instrumented channels...
-    #[cfg(feature = "hotpath")]
     let (tx, mut rx) = hotpath::channel!(mpsc::channel::<i32>(10), label = "task-queue");
-    #[cfg(not(feature = "hotpath"))]
-    let (tx, mut rx) = mpsc::channel::<i32>(10);
 
     // ... use your channels ...
 
@@ -411,7 +395,6 @@ async fn main() {
 **Customize output format:**
 
 ```rust
-#[cfg(feature = "hotpath")]
 let _guard = hotpath::ChannelsGuardBuilder::new()
     .format(hotpath::Format::Json)
     .build();
@@ -534,7 +517,6 @@ Macro that instruments streams to track items yielded. Wraps stream creation wit
 
 **Example:**
 ```rust
-#[cfg(feature = "hotpath")]
 let _guard = hotpath::ChannelsGuardBuilder::new()
     .format(hotpath::Format::JsonPretty)
     .build();
@@ -552,7 +534,6 @@ let _guard = hotpath::ChannelsGuardBuilder::new()
 
 **Example:**
 ```rust
-#[cfg(feature = "hotpath")]
 let _guard = hotpath::StreamsGuardBuilder::new()
     .format(hotpath::Format::Table)
     .build();
@@ -579,7 +560,6 @@ fn work_function() {
 
 fn main() {
     // Profile for 1 second, then generate report and exit
-    #[cfg(feature = "hotpath")]
     hotpath::FunctionsGuardBuilder::new("timed_benchmark")
         .build_with_timeout(Duration::from_secs(1));
 
@@ -613,7 +593,6 @@ fn example_function() {
 }
 
 fn main() {
-    #[cfg(feature = "hotpath")]
     let _guard = hotpath::FunctionsGuardBuilder::new("my_program")
         .percentiles(&[50, 95, 99])
         .format(hotpath::Format::Table)
@@ -622,7 +601,6 @@ fn main() {
     example_function();
 
     // This will print the report.
-    #[cfg(feature = "hotpath")]
     drop(_guard);
 
     // Immediate exit (no drops); `#[hotpath::main]` wouldn't print.
