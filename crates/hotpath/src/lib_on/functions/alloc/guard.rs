@@ -6,6 +6,7 @@ use std::time::Instant;
 
 use super::super::truncate_result;
 
+#[must_use = "guard is dropped immediately without measuring anything"]
 pub struct MeasurementGuard {
     name: &'static str,
     wrapper: bool,
@@ -96,6 +97,7 @@ impl Drop for MeasurementGuard {
     }
 }
 
+#[must_use = "guard is dropped immediately without measuring anything"]
 pub struct MeasurementGuardWithLog {
     name: &'static str,
     wrapper: bool,

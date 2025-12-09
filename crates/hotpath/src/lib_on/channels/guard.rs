@@ -22,6 +22,7 @@ use crate::Format;
 ///     .build();
 /// // Statistics will be printed as pretty JSON when _guard is dropped
 /// ```
+#[must_use = "builder is discarded without creating a guard"]
 pub struct ChannelsGuardBuilder {
     format: Format,
 }
@@ -80,6 +81,7 @@ impl Default for ChannelsGuardBuilder {
 /// // Your code with instrumented channels here
 /// // Statistics will be printed when _guard is dropped
 /// ```
+#[must_use = "guard is dropped immediately without printing statistics"]
 pub struct ChannelsGuard {
     start_time: Instant,
     format: Format,

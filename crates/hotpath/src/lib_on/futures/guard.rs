@@ -21,6 +21,7 @@ use crate::Format;
 ///     .build();
 /// // Statistics will be printed as pretty JSON when _guard is dropped
 /// ```
+#[must_use = "builder is discarded without creating a guard"]
 pub struct FuturesGuardBuilder {
     format: Format,
 }
@@ -80,6 +81,7 @@ impl Default for FuturesGuardBuilder {
 /// // Your code with instrumented futures here
 /// // Statistics will be printed when _guard is dropped
 /// ```
+#[must_use = "guard is dropped immediately without printing statistics"]
 pub struct FuturesGuard {
     start_time: Instant,
     format: Format,

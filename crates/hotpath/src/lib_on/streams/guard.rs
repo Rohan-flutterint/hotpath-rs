@@ -22,6 +22,7 @@ use crate::Format;
 ///     .build();
 /// // Statistics will be printed as pretty JSON when _guard is dropped
 /// ```
+#[must_use = "builder is discarded without creating a guard"]
 pub struct StreamsGuardBuilder {
     format: Format,
 }
@@ -80,6 +81,7 @@ impl Default for StreamsGuardBuilder {
 /// // Your code with instrumented streams here
 /// // Statistics will be printed when _guard is dropped
 /// ```
+#[must_use = "guard is dropped immediately without printing statistics"]
 pub struct StreamsGuard {
     start_time: Instant,
     format: Format,

@@ -100,6 +100,7 @@ enum ReporterConfig {
 /// * [`main`] - Attribute macro for automatic initialization
 /// * [`Format`] - Output format options
 /// * [`Reporter`] - Custom reporter trait
+#[must_use = "builder is discarded without creating a guard"]
 pub struct FunctionsGuardBuilder {
     caller_name: &'static str,
     percentiles: Vec<u8>,
@@ -340,6 +341,7 @@ impl FunctionsGuardBuilder {
     }
 }
 
+#[must_use = "guard is dropped immediately without generating a report"]
 pub struct FunctionsGuard {
     state: Arc<RwLock<FunctionsState>>,
     reporter: Box<dyn Reporter>,
