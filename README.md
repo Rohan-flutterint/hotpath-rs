@@ -3,6 +3,8 @@
 
 hotpath-rs instruments functions, channels, futures, streams, and threads to quickly find bottlenecks and focus optimizations where they matter most. It provides actionable insights into time, memory, and data flow with minimal setup.
 
+Explore the full documentation at [hotpath.rs](https://hotpath.rs).
+
 You can use it to produce one-off performance (timing or memory) reports:
 
 ![hotpath alloc report](hotpath-alloc-report.png)
