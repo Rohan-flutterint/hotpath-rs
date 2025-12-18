@@ -22,6 +22,7 @@ fn find_existing_comment(
     pr_number: &str,
     token: &str,
     profiling_mode: &ProfilingMode,
+    benchmark_id: Option<&str>,
 ) -> Result<Option<u64>> {
     let url = format!(
         "https://api.github.com/repos/{}/issues/{}/comments",
@@ -38,7 +39,10 @@ fn find_existing_comment(
         Ok(mut resp) => {
             let comments: Vec<GitHubComment> = resp.body_mut().read_json()?;
 
-            let search_marker = format!("**Profiling Mode:** {}", profiling_mode);
+            let search_marker = match benchmark_id {
+                Some(id) => format!("**Benchmark ID:** {}", id),
+                None => format!("**Profiling Mode:** {}", profiling_mode),
+            };
 
             for comment in comments {
                 if comment.user.user_type == "Bot"
@@ -126,8 +130,9 @@ pub fn upsert_pr_comment(
     token: &str,
     body: &str,
     profiling_mode: &ProfilingMode,
+    benchmark_id: Option<&str>,
 ) -> Result<()> {
-    match find_existing_comment(repo, pr_number, token, profiling_mode) {
+    match find_existing_comment(repo, pr_number, token, profiling_mode, benchmark_id) {
         Ok(Some(comment_id)) => {
             println!(
                 "Found existing comment (id: {}) for profiling mode: {}",

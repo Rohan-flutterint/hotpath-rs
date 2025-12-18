@@ -28,7 +28,7 @@ jobs:
           run-id: ${{ github.event.workflow_run.id }}
 
       - name: Install hotpath-ci CLI
-        run: cargo install hotpath --bin hotpath-ci --features=ci
+        run: cargo install --path crates/hotpath --bin hotpath-ci --features=ci
 
       - name: Post PR comment - noop timing
         env:
@@ -38,11 +38,14 @@ jobs:
           HEAD_METRICS=$(cat /tmp/metrics/head_noop_timing.json)
           BASE_METRICS=$(cat /tmp/metrics/base_noop_timing.json)
           PR_NUMBER=$(cat /tmp/metrics/pr_number.txt)
+          export GITHUB_BASE_REF=$(cat /tmp/metrics/base_ref.txt)
+          export GITHUB_HEAD_REF=$(cat /tmp/metrics/head_ref.txt)
           hotpath-ci profile-pr \
             --head-metrics "$HEAD_METRICS" \
             --base-metrics "$BASE_METRICS" \
             --github-token "$GH_TOKEN" \
-            --pr-number "$PR_NUMBER"
+            --pr-number "$PR_NUMBER" \
+            --benchmark-id "noop-timing"
 
       - name: Post PR comment - alloc timing
         env:
@@ -52,11 +55,14 @@ jobs:
           HEAD_METRICS=$(cat /tmp/metrics/head_alloc_timing.json)
           BASE_METRICS=$(cat /tmp/metrics/base_alloc_timing.json)
           PR_NUMBER=$(cat /tmp/metrics/pr_number.txt)
+          export GITHUB_BASE_REF=$(cat /tmp/metrics/base_ref.txt)
+          export GITHUB_HEAD_REF=$(cat /tmp/metrics/head_ref.txt)
           hotpath-ci profile-pr \
             --head-metrics "$HEAD_METRICS" \
             --base-metrics "$BASE_METRICS" \
             --github-token "$GH_TOKEN" \
-            --pr-number "$PR_NUMBER"
+            --pr-number "$PR_NUMBER" \
+            --benchmark-id "alloc-timing"
 
       - name: Post PR comment - alloc alloc
         env:
@@ -66,8 +72,11 @@ jobs:
           HEAD_METRICS=$(cat /tmp/metrics/head_alloc_alloc.json)
           BASE_METRICS=$(cat /tmp/metrics/base_alloc_alloc.json)
           PR_NUMBER=$(cat /tmp/metrics/pr_number.txt)
+          export GITHUB_BASE_REF=$(cat /tmp/metrics/base_ref.txt)
+          export GITHUB_HEAD_REF=$(cat /tmp/metrics/head_ref.txt)
           hotpath-ci profile-pr \
             --head-metrics "$HEAD_METRICS" \
             --base-metrics "$BASE_METRICS" \
             --github-token "$GH_TOKEN" \
-            --pr-number "$PR_NUMBER"
+            --pr-number "$PR_NUMBER" \
+            --benchmark-id "alloc-alloc"

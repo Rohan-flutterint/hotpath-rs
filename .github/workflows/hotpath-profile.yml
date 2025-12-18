@@ -97,6 +97,8 @@ jobs:
           echo '${{ steps.base_alloc_timing.outputs.metrics }}' > /tmp/metrics/base_alloc_timing.json
           echo '${{ steps.base_alloc_alloc.outputs.metrics }}' > /tmp/metrics/base_alloc_alloc.json
           echo '${{ github.event.pull_request.number }}' > /tmp/metrics/pr_number.txt
+          echo '${{ github.base_ref }}' > /tmp/metrics/base_ref.txt
+          echo '${{ github.head_ref }}' > /tmp/metrics/head_ref.txt
 
       - uses: actions/upload-artifact@v4
         with:

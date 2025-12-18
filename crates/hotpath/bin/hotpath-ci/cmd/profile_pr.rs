@@ -28,6 +28,12 @@ pub struct ProfilePrArgs {
         help = "Emoji threshold percentage for performance changes (default: 20, use 0 to disable)"
     )]
     emoji_threshold: Option<u32>,
+
+    #[arg(
+        long,
+        help = "Unique identifier for this benchmark to prevent comment collisions"
+    )]
+    benchmark_id: Option<String>,
 }
 
 impl ProfilePrArgs {
@@ -52,10 +58,15 @@ impl ProfilePrArgs {
             .map_err(|e| eyre::eyre!("Failed to deserialize base metrics: {}", e))?;
 
         let comparison = compare_metrics(&base_metrics_data, &head_metrics_data);
-        let comparison_markdown =
-            format_comparison_markdown(&comparison, &base_metrics_data, emoji_threshold);
+        let comparison_markdown = format_comparison_markdown(
+            &comparison,
+            &base_metrics_data,
+            emoji_threshold,
+            self.benchmark_id.as_deref(),
+        );
 
-        let mut body = comparison_markdown;
+        let mut body = String::new();
+        body.push_str(&comparison_markdown);
         body.push_str("\n<details>\n<summary>📊 View Raw JSON Metrics</summary>\n\n");
         body.push_str("### PR Metrics\n```json\n");
         body.push_str(&serde_json::to_string_pretty(&head_metrics_data)?);
@@ -69,6 +80,7 @@ impl ProfilePrArgs {
             &self.github_token,
             &body,
             &head_metrics_data.hotpath_profiling_mode,
+            self.benchmark_id.as_deref(),
         ) {
             Ok(_) => {}
             Err(e) => println!("Failed to post/update comment: {}", e),
@@ -313,18 +325,25 @@ fn format_comparison_markdown(
     comparison: &MetricsComparison,
     metrics: &FunctionsJson,
     emoji_threshold: Option<u32>,
+    benchmark_id: Option<&str>,
 ) -> String {
     let mut markdown = String::new();
 
-    let base_branch = env::var("GITHUB_BASE_REF").unwrap_or_else(|_| "before".to_string());
-    let head_branch = env::var("GITHUB_HEAD_REF").unwrap_or_else(|_| "after".to_string());
+    let base_branch = env::var("GITHUB_BASE_REF")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "base".to_string());
+    let head_branch = env::var("GITHUB_HEAD_REF")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "head".to_string());
 
     markdown.push_str(&format!(
-        "### Performance Comparison `{}` → `{}`\n\n",
+        "### Performance Comparison `{}` → `{}`\n",
         base_branch, head_branch
     ));
     markdown.push_str(&format!(
-        "**Total Elapsed Time:** {}\n\n",
+        "**Total Elapsed Time:** {}\n",
         comparison
             .total_elapsed_diff
             .format_with_emoji(emoji_threshold)
@@ -333,6 +352,9 @@ fn format_comparison_markdown(
         "**Profiling Mode:** {} - {}\n",
         metrics.hotpath_profiling_mode, metrics.description
     ));
+    if let Some(id) = benchmark_id {
+        markdown.push_str(&format!("**Benchmark ID:** {}\n", id));
+    }
 
     if comparison.function_diffs.is_empty() {
         markdown.push_str("*No functions to compare*\n");
@@ -481,7 +503,7 @@ mod test {
         }
 
         // Test markdown formatting
-        let markdown = format_comparison_markdown(&comparison, &main_metrics, Some(20));
+        let markdown = format_comparison_markdown(&comparison, &main_metrics, Some(20), None);
         println!("\n=== Generated Markdown ===\n{}", markdown);
     }
 
@@ -557,7 +579,7 @@ mod test {
             }
         }
 
-        let markdown = format_comparison_markdown(&comparison, &main_metrics, Some(20));
+        let markdown = format_comparison_markdown(&comparison, &main_metrics, Some(20), None);
         println!("\n=== Generated Markdown ===\n{}", markdown);
 
         assert!(comparison
@@ -638,7 +660,7 @@ mod test {
             }
         }
 
-        let markdown = format_comparison_markdown(&comparison, &main_metrics, Some(20));
+        let markdown = format_comparison_markdown(&comparison, &main_metrics, Some(20), None);
         println!("\n=== Generated Markdown ===\n{}", markdown);
 
         assert!(comparison
@@ -729,7 +751,7 @@ mod test {
         }
 
         // Test markdown formatting
-        let markdown = format_comparison_markdown(&comparison, &main_metrics, Some(20));
+        let markdown = format_comparison_markdown(&comparison, &main_metrics, Some(20), None);
         println!("\n=== Generated Markdown ===\n{}", markdown);
 
         // Verify we have both new and removed functions
