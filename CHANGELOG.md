@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.1] - 2025-12-18
+
+### 🚀 Features
+
+- Add --benchmark-id config to hotpath-ci
+
+### 🐛 Bug Fixes
+
+- Display multi-byte characters [#104]
+
+### ⚡ Performance
+
+- Cache & batch function measurements (#107)
+
+### ⚙️ Miscellaneous Tasks
+
+- Add profiling examples
+- Add more granular benchmarks
+- Add macos benchmarks
+- Release 0.9.1
+
 ## [0.9.0] - 2025-12-11
 
 ### 🚀 Features
