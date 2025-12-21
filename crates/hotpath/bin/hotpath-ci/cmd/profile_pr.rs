@@ -392,7 +392,7 @@ fn format_comparison_markdown(
     markdown.push_str("```\n\n");
 
     markdown.push_str("---\n");
-    markdown.push_str("*Generated with [hotpath-rs](https://github.com/pawurb/hotpath-rs)*\n");
+    markdown.push_str("*Generated with [hotpath-rs](https://hotpath.rs)*\n");
 
     markdown
 }
