@@ -1,9 +1,9 @@
 [package]
 name = "hotpath"
-version = "0.9.1"
+version = "0.9.2"
 edition = "2021"
 repository = "https://github.com/pawurb/hotpath"
-description = "Simple Rust profiler with memory and async data-flow insights - quickly find and debug performance bottlenecks."
+description = "Simple async Rust profiler with memory and data-flow insights - quickly find and debug performance bottlenecks."
 readme = "../../README.md"
 license = "MIT"
 categories = ["development-tools"]
